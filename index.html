@@ -1,0 +1,877 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="授業プリント"><meta name="theme-color" content="#1d2429"><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png"><style>[hidden]{display:none!important}</style></head><body><title>弥生時代 授業プリント</title>
+<style>
+/* 配布PDFそのものを映し、答えはPDFのレイヤーを重ねて出す。アプリ部分は暗い机の色で単一テーマ。 */
+:root{
+  --desk:#1d2429; --bar:#141a1e; --bar-line:#343f47; --bar-fg:#e8edf0; --bar-dim:#9aa7b0; --bar-on:#3a4c59; --go:#2d5d8a; --go-line:#5b8db8;
+  --ui:system-ui,-apple-system,"Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--desk);color:var(--bar-fg);font-family:var(--ui)}
+body{position:fixed;inset:0;display:flex;flex-direction:column;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+#stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none}
+#stage *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#sheet{position:absolute;left:0;top:0;transform-origin:0 0;transition:transform .6s cubic-bezier(.3,.1,.2,1)}
+#sheet.free{transition:none}
+.pg{position:absolute;left:0;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.pg canvas{position:absolute;display:block}
+.pg .base{left:0;top:0;width:100%;height:100%}
+.pg .detail{pointer-events:none}
+.ly{position:absolute;opacity:0;transition:opacity .45s ease;pointer-events:none}
+.ly.on{opacity:1}
+.ly canvas{left:0;top:0;width:100%;height:100%}
+#ink{position:absolute;left:0;top:0;pointer-events:none;overflow:visible}
+#ink .mk{mix-blend-mode:multiply}
+#live{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--bar-dim);font-size:15px;text-align:center;padding:0 24px;line-height:1.6}
+
+#bar{flex:none;display:flex;align-items:center;gap:6px;background:var(--bar);border-top:1px solid var(--bar-line);padding-top:7px;padding-bottom:max(7px,env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));overflow-x:auto;font-size:14px;touch-action:pan-x}
+#bar button{font:inherit;color:var(--bar-fg);background:transparent;border:1px solid var(--bar-line);border-radius:7px;height:44px;min-width:44px;padding:0 9px;white-space:nowrap;cursor:pointer;flex:none;touch-action:manipulation}
+#bar button[aria-pressed="true"]{background:var(--bar-on);border-color:#8fa5b4}
+#bar button:focus-visible{outline:2px solid #9cc4e4;outline-offset:1px}
+#bar button:disabled{opacity:.35}
+#bar .sw{display:inline-block;width:18px;height:18px;border-radius:50%;vertical-align:-4px;margin-right:6px;box-shadow:0 0 0 1px rgba(255,255,255,.35)}
+#bar .sw.sq{border-radius:4px}
+#bar [aria-haspopup]::after{content:"▾";margin-left:5px;color:var(--bar-dim);font-size:11px}
+/* 道具の設定パネル（使っている道具のボタンをもう一度押すと開く） */
+#opts{position:fixed;left:max(12px,env(safe-area-inset-left,0px));z-index:5;background:#232c32;border:1px solid var(--bar-line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.45);max-width:calc(100vw - 24px)}
+#opts .lab{font-size:12px;color:var(--bar-dim)}
+#opts .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+#opts button{font:inherit;font-size:14px;color:var(--bar-fg);background:transparent;border:1px solid var(--bar-line);border-radius:8px;min-width:44px;height:44px;padding:0 10px;cursor:pointer;touch-action:manipulation}
+#opts button[aria-pressed="true"]{background:var(--bar-on);border-color:#b8cad6}
+#opts .c{width:44px;padding:0;display:flex;align-items:center;justify-content:center}
+#opts .c i{display:block;width:26px;height:26px;border-radius:50%}
+#opts .c.sq i{border-radius:5px}
+#opts .c[aria-pressed="true"] i{box-shadow:0 0 0 3px #232c32,0 0 0 5px #e8edf0}
+#opts .sz{flex-wrap:nowrap;gap:12px}
+#opts input[type=range]{width:220px;height:44px;margin:0;accent-color:#7fb3dc;touch-action:pan-x}
+#opts .szv{min-width:34px;font-variant-numeric:tabular-nums;color:var(--bar-fg);font-size:14px;text-align:right}
+#opts .szp{width:64px;height:64px;display:flex;align-items:center;justify-content:center;flex:none}
+#opts .szp i{display:block;max-width:64px;max-height:64px;box-sizing:border-box}
+#opts .pick{display:flex;align-items:center;gap:8px}
+#opts .pick i{display:block;width:22px;height:22px;border-radius:50%;background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red)}
+#opts .pk{display:flex;flex-direction:column;gap:8px}
+#opts .pk canvas{display:block;width:240px;border-radius:6px;touch-action:none;cursor:crosshair}
+#bar .sep{flex:none;width:1px;height:28px;background:var(--bar-line);margin:0 3px}
+#bar .gap{flex:1 0 8px}
+#next{background:var(--go)!important;border-color:var(--go-line)!important;font-weight:700;min-width:96px!important}
+#count{font-variant-numeric:tabular-nums;color:var(--bar-dim);flex:none;min-width:52px;text-align:center;font-size:12.5px}
+#hint{flex:0 1 150px;min-width:0;max-width:150px;overflow:hidden;text-overflow:ellipsis;color:var(--bar-dim);font-size:12.5px;white-space:nowrap}
+@media (max-width:1300px){#hint{display:none}#bar{gap:4px;font-size:13px}#bar button{padding:0 7px}#bar .sw{margin-right:4px}#next{min-width:80px!important}#count{min-width:42px}}
+body:not([data-view="class"]) .classonly{display:none!important}
+body:not([data-view="class"]) #ink,body:not([data-view="class"]) #live{display:none}
+body[data-view="check"] #stage{display:none}
+
+#check{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding-block:18px 30px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));-webkit-user-select:text;user-select:text}
+#check .in{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+#check h2{margin:0;font-size:22px}
+#check h3{margin:6px 0 0;font-size:16px}
+#check p{margin:0;color:var(--bar-dim);line-height:1.6;font-size:14px;max-width:65ch}
+#check .tw{overflow-x:auto}
+#check table{border-collapse:collapse;width:100%;min-width:520px;font-size:14px;line-height:1.45}
+#check th,#check td{border-bottom:1px solid var(--bar-line);padding:7px 8px;text-align:left;vertical-align:top}
+#check th{color:var(--bar-dim);font-weight:400;font-size:12.5px}
+#check td.w{white-space:nowrap;color:var(--bar-dim);font-size:13px}
+#check input{width:20px;height:20px;accent-color:#6fa8d6}
+#check label{display:flex;justify-content:center}
+#progress{font-variant-numeric:tabular-nums;color:var(--bar-fg);font-weight:700}
+/* 教材一覧 */
+#lib{position:fixed;inset:0;z-index:20;background:var(--desk);overflow:auto;-webkit-overflow-scrolling:touch;padding-top:max(28px,env(safe-area-inset-top,0px));padding-bottom:max(28px,env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#lib .in{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+#lib h1{margin:0;font-size:28px;letter-spacing:.04em}
+#lib .sub,#lib .help{margin:0;color:var(--bar-dim);font-size:14px;line-height:1.7}
+#liblist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+#liblist li{display:flex;gap:10px;align-items:stretch}
+#liblist .open{flex:1;min-width:0;text-align:left;font:inherit;color:var(--bar-fg);background:#263038;border:1px solid var(--bar-line);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:4px;cursor:pointer}
+#liblist .open b{font-size:18px}
+#liblist .open small{color:var(--bar-dim);font-size:13px}
+#liblist .del{font:inherit;font-size:14px;color:#f3b4ad;background:transparent;border:1px solid #6b3a36;border-radius:12px;padding:0 16px;cursor:pointer;min-width:72px}
+#liblist .empty{color:var(--bar-dim);font-size:15px;line-height:1.7;border:1px dashed var(--bar-line);border-radius:12px;padding:20px}
+#lib .imp{align-self:flex-start;display:inline-flex;align-items:center;font-size:16px;font-weight:700;background:var(--go);border:1px solid var(--go-line);border-radius:12px;padding:0 22px;height:52px;cursor:pointer}
+#lib .imp input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+#libmsg{margin:0;min-height:1.5em;font-size:14px;color:#9fd7a8}
+#libmsg[data-bad="1"]{color:#f3b4ad}
+#lib button:focus-visible,#lib .imp:focus-within{outline:2px solid #9cc4e4;outline-offset:2px}
+@media (prefers-reduced-motion:reduce){#sheet,.ly{transition:none}}
+</style>
+
+<div id="stage">
+  <div id="sheet"><svg id="ink" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg></div>
+  <canvas id="live" aria-hidden="true"></canvas>
+  <div id="msg">プリントを読み込んでいます…</div>
+</div>
+
+<main id="check" hidden>
+  <div class="in">
+    <h2>網羅チェック表</h2>
+    <p>学校プリントの該当範囲を項目に分けて、新しいプリントの載せ場所と対応させた表だよ。確認できた行にチェックしてね。<span id="progress"></span></p>
+    <div class="tw"><table><thead><tr><th style="width:44px">確認</th><th>学校プリントの内容</th><th>載せた場所</th></tr></thead><tbody id="rows"></tbody></table></div>
+    <h3>学校プリントにない追加分</h3>
+    <div class="tw"><table><thead><tr><th>追加したもの</th><th>載せた場所</th></tr></thead><tbody id="adds"></tbody></table></div>
+  </div>
+</main>
+
+<section id="lib" hidden aria-labelledby="libh">
+  <div class="in">
+    <h1 id="libh">授業プリント</h1>
+    <p class="sub">授業で使う教材を選んでね。教材はこのiPadの中にだけ保存されるよ。</p>
+    <ul id="liblist"></ul>
+    <label class="imp"><input type="file" id="libfile" accept=".json,application/json">＋ 教材を読み込む</label>
+    <p id="libmsg" role="status"></p>
+    <p class="help">教材ファイル（.lesson.json）は、パソコンで作ったものをGoogleドライブなどに入れておき、ここから選んでね。同じ教材をもう一度読み込むと、新しい版に入れ替わるよ（書き込みは残るよ）。</p>
+  </div>
+</section>
+<div id="opts" role="dialog" aria-label="道具の設定" hidden></div>
+<nav id="bar" aria-label="操作">
+  <span class="classonly" style="display:contents">
+    <button data-tool="pen" aria-pressed="true" aria-haspopup="true"><span class="sw"></span>ペン</button>
+    <button data-tool="marker" aria-pressed="false" aria-haspopup="true"><span class="sw sq"></span>マーカー</button>
+    <button data-tool="eraser" aria-pressed="false" aria-haspopup="true">消しゴム</button>
+    <button data-tool="laser" aria-pressed="false" aria-haspopup="true"><span class="sw" style="background:#ff2a1a;box-shadow:0 0 6px 2px rgba(255,255,255,.5)"></span>ポインター</button>
+    <button id="undo">戻す</button>
+    <button id="clear">全消去</button>
+    <span class="sep"></span>
+  </span>
+  <button data-view="class" aria-pressed="true">授業</button>
+  <button data-view="student" aria-pressed="false">生徒用</button>
+  <button data-view="answer" aria-pressed="false">解答入り</button>
+  <button data-view="check" aria-pressed="false">確認表</button>
+  <button id="fs">全画面</button>
+  <button id="tolib">教材一覧</button>
+  <span class="gap"></span>
+  <span class="classonly" style="display:contents">
+    <span id="hint"></span>
+    <button id="first">最初へ</button>
+    <button id="whole">全体</button>
+    <button id="prev" aria-label="前へ">◀</button>
+    <span id="count"></span>
+    <button id="next">次へ ▶</button>
+  </span>
+</nav>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script>
+(function(){
+'use strict';
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const stage=$('#stage'),sheet=$('#sheet'),inkSvg=$('#ink'),live=$('#live'),msg=$('#msg');
+const PT=0.75;                          /* PDFは 1px = 0.75pt で作っている */
+const GAP=36;
+const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let LID='01-yayoi';
+const KEY=k=>LID+':'+k;
+let L=null,stuDoc=null,layDoc=null,pageW=794,pageH=1122.5,pages=[],layers={};
+let idx=0,view='class',cam={x:0,y:0,s:1},camTarget='p1';
+const dprOf=()=>Math.min(window.devicePixelRatio||1,3);
+
+/* ---------- PDFの描画 ---------- */
+const jobs=new WeakMap();
+async function draw(pdfPage,canvas,x,y,w,h,R,transparent){
+  const old=jobs.get(canvas);if(old){try{old.cancel()}catch(e){}}
+  const cw=Math.max(1,Math.round(w*R)),ch=Math.max(1,Math.round(h*R));
+  const off=document.createElement('canvas');off.width=cw;off.height=ch;
+  const ctx=off.getContext('2d');
+  const task=pdfPage.render({canvasContext:ctx,viewport:pdfPage.getViewport({scale:R/PT,offsetX:-x*R,offsetY:-y*R}),background:transparent?'rgba(0,0,0,0)':'#ffffff'});
+  jobs.set(canvas,task);
+  try{await task.promise}catch(e){return false}
+  if(jobs.get(canvas)!==task)return false;
+  canvas.width=cw;canvas.height=ch;canvas.getContext('2d').drawImage(off,0,0);
+  return true;
+}
+function maxR(w,h){return Math.min(6,Math.sqrt(9e6/(w*h)))}   /* 1枚の描画を900万画素までに抑える */
+
+async function buildPages(){
+  for(let i=0;i<L.pages;i++){
+    const pp=await stuDoc.getPage(i+1);
+    const div=document.createElement('div');div.className='pg';div.style.top=(i*(pageH+GAP))+'px';div.style.width=pageW+'px';div.style.height=pageH+'px';
+    const base=document.createElement('canvas');base.className='base';
+    const det=document.createElement('canvas');det.className='detail';det.hidden=true;
+    div.append(base,det);sheet.insertBefore(div,inkSvg);
+    pages.push({div,base,det,pp,detR:0});
+  }
+  for(const l of L.layers){
+    const d=document.createElement('div');d.className='ly';
+    Object.assign(d.style,{left:l.x+'px',top:l.y+'px',width:l.w+'px',height:l.h+'px'});
+    const c=document.createElement('canvas');d.appendChild(c);pages[l.page].div.appendChild(d);
+    layers[l.id]={...l,div:d,canvas:c,R:0,pp:await layDoc.getPage(l.layerPage+1)};
+  }
+  const H=L.pages*(pageH+GAP)-GAP;
+  sheet.style.width=pageW+'px';sheet.style.height=H+'px';
+  inkSvg.setAttribute('viewBox',`0 0 ${pageW} ${H}`);inkSvg.style.width=pageW+'px';inkSvg.style.height=H+'px';
+  const R0=Math.min(2.6,dprOf()*1.3);
+  await Promise.all(pages.map(p=>draw(p.pp,p.base,0,0,pageW,pageH,R0,false)));
+}
+function wantR(){return Math.max(1,cam.s*dprOf())}
+async function renderLayer(l){
+  const R=Math.min(wantR(),maxR(l.w,l.h));
+  if(l.R>=R*0.95)return;
+  if(await draw(l.pp,l.canvas,l.x,l.y,l.w,l.h,R,true))l.R=R;
+}
+let settleTimer=null;
+function settle(){clearTimeout(settleTimer);settleTimer=setTimeout(renderDetail,180)}
+async function renderDetail(){
+  if(!pages.length||view==='check')return;
+  const r=stage.getBoundingClientRect(),R=wantR();
+  const vx0=-cam.x/cam.s,vy0=-cam.y/cam.s,vx1=vx0+r.width/cam.s,vy1=vy0+r.height/cam.s;
+  pages.forEach((p,i)=>{
+    const top=i*(pageH+GAP);
+    const x0=Math.max(0,vx0),x1=Math.min(pageW,vx1),y0=Math.max(0,vy0-top),y1=Math.min(pageH,vy1-top);
+    if(x1<=x0||y1<=y0||R<=2.7){p.det.hidden=true;return}
+    const m=40/cam.s,X=Math.max(0,x0-m),Y=Math.max(0,y0-m),W=Math.min(pageW,x1+m)-X,Hh=Math.min(pageH,y1+m)-Y;
+    const RR=Math.min(R,maxR(W,Hh));
+    draw(p.pp,p.det,X,Y,W,Hh,RR,false).then(ok=>{if(!ok)return;Object.assign(p.det.style,{left:X+'px',top:Y+'px',width:W+'px',height:Hh+'px'});p.det.hidden=false});
+  });
+  Object.values(layers).forEach(l=>{if(l.div.classList.contains('on'))renderLayer(l)});
+}
+sheet.addEventListener('transitionend',settle);
+
+/* ---------- カメラ ---------- */
+function rectOf(id){const t=L.targets[id];return{x:t.x,y:t.page*(pageH+GAP)+t.y,w:t.w,h:t.h,isPage:id[0]==='p'}}
+function setCam(c,animated){sheet.classList.toggle('free',!animated);cam=c;sheet.style.transform=`translate(${c.x}px,${c.y}px) scale(${c.s})`;if(!animated)settle()}
+function fit(id,animated){
+  const t=rectOf(id),r=stage.getBoundingClientRect(),pad=10;
+  let x0,w,y0,h;
+  if(t.isPage){x0=0;w=pageW;y0=t.y;h=pageH}else{x0=30;w=pageW-60;y0=t.y-14;h=t.h+28}
+  const s=Math.min((r.width-pad*2)/w,(r.height-pad*2)/h,t.isPage?9:2.4);
+  setCam({s,x:(r.width-w*s)/2-x0*s,y:(r.height-h*s)/2-y0*s},animated);camTarget=id;
+  if(animated)settle();
+}
+function fitWidth(){const r=stage.getBoundingClientRect(),s=Math.min((r.width-16)/pageW,1.6);setCam({s,x:(r.width-pageW*s)/2,y:8},false);camTarget=null}
+
+/* ---------- 進行 ---------- */
+function revealed(){
+  const on=new Set();
+  if(view==='answer')Object.keys(layers).forEach(k=>on.add(k));
+  else if(view==='class')for(let i=0;i<=idx;i++)(L.steps[i].r||[]).forEach(r=>on.add(r));
+  return on;
+}
+function apply(animated=true){
+  const on=revealed();
+  Object.values(layers).forEach(l=>{const v=on.has(l.id);if(v)renderLayer(l);l.div.classList.toggle('on',v)});
+  if(view==='class'){
+    fit(L.steps[idx].c,animated);
+    $('#count').textContent=`${idx+1} / ${L.steps.length}`;
+    $('#hint').textContent=idx<L.steps.length-1?`次：${L.steps[idx+1].n}`:'最後まで進んだよ';
+    $('#prev').disabled=idx===0;$('#first').disabled=idx===0;$('#next').disabled=idx===L.steps.length-1;
+    store.set(KEY('step'),idx);
+  }else if(view!=='check')fitWidth();
+}
+function go(d){const n=idx+d;if(n<0||n>=L.steps.length)return;idx=n;apply(true)}
+function setView(v){
+  view=v;document.body.dataset.view=v;$('#check').hidden=v!=='check';
+  $$('#bar [data-view]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.view===v));
+  if(!document.getElementById('lib')||document.getElementById('lesson-data'))try{const h=v==='class'?'':'#'+v;if(location.hash!==h)history.replaceState(null,'',location.pathname+location.search+h)}catch(e){}
+  if(L)apply(false);
+}
+$('#next').onclick=()=>go(1);$('#prev').onclick=()=>go(-1);
+$('#first').onclick=()=>{idx=0;apply(true)};
+$('#whole').onclick=()=>{const t=L.targets[L.steps[idx].c];fit('p'+(t.page+1),true)};
+$$('#bar [data-view]').forEach(b=>b.onclick=()=>setView(b.dataset.view));
+addEventListener('keydown',e=>{if(view!=='class'||!L)return;if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(1)}if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();go(-1)}if(e.key==='Home'){e.preventDefault();idx=0;apply(true)}});
+addEventListener('resize',()=>{sizeLive();if(!L)return;if(view==='class'){if(camTarget)fit(camTarget,false);else settle()}else if(view!=='check')fitWidth()});
+
+/* ---------- 全画面・画面の自動消灯防止 ---------- */
+const root=document.documentElement,fsReq=root.requestFullscreen||root.webkitRequestFullscreen;
+const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
+function fsLabel(){$('#fs').textContent=fsEl()?'全画面を解除':'全画面'}
+if(!fsReq)$('#fs').hidden=true;
+$('#fs').onclick=()=>{try{if(fsEl()){(document.exitFullscreen||document.webkitExitFullscreen).call(document);return}const r=fsReq.call(root);if(r&&r.catch)r.catch(()=>{$('#hint').textContent='この開き方では全画面にできないよ'})}catch(e){$('#hint').textContent='この開き方では全画面にできないよ'}};
+document.addEventListener('fullscreenchange',fsLabel);document.addEventListener('webkitfullscreenchange',fsLabel);
+let wake=null;
+async function keepAwake(){try{if(!wake&&navigator.wakeLock&&document.visibilityState==='visible'){wake=await navigator.wakeLock.request('screen');wake.addEventListener('release',()=>{wake=null})}}catch(e){}}
+document.addEventListener('visibilitychange',keepAwake);
+
+/* ---------- 書き込み（座標はプリント上に固定） ---------- */
+let strokes=store.get(KEY('ink'))||[];if(!Array.isArray(strokes))strokes=[];
+let hist=[],tool='pen';
+const f1=n=>n.toFixed(1);
+function smooth(pts){                     /* 角を少し丸めて、がたつきを減らす（端点はそのまま） */
+  if(pts.length<3)return pts;
+  const o=[pts[0]];
+  for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1];o.push([a[0]*.75+b[0]*.25,a[1]*.75+b[1]*.25,a[2]*.75+b[2]*.25],[a[0]*.25+b[0]*.75,a[1]*.25+b[1]*.75,a[2]*.25+b[2]*.75])}
+  o.push(pts[pts.length-1]);return o;
+}
+function outline(raw,exact){
+  const pts=exact?raw:smooth(raw),c=(x,y,r)=>`M${f1(x-r)} ${f1(y)}a${f1(r)} ${f1(r)} 0 1 0 ${f1(2*r)} 0a${f1(r)} ${f1(r)} 0 1 0 ${f1(-2*r)} 0`;
+  if(pts.length<2){const p=pts[0];return c(p[0],p[1],p[2]/2)}
+  const Lp=[],Rp=[];
+  for(let i=0;i<pts.length;i++){
+    const a=pts[Math.max(i-1,0)],b=pts[Math.min(i+1,pts.length-1)],p=pts[i];
+    let dx=b[0]-a[0],dy=b[1]-a[1],m=Math.hypot(dx,dy)||1;dx/=m;dy/=m;const r=p[2]/2;
+    Lp.push(`${f1(p[0]-dy*r)} ${f1(p[1]+dx*r)}`);Rp.unshift(`${f1(p[0]+dy*r)} ${f1(p[1]-dx*r)}`);
+  }
+  const s=pts[0],e=pts[pts.length-1];
+  return 'M'+Lp.join('L')+'L'+Rp.join('L')+'Z'+c(s[0],s[1],s[2]/2)+c(e[0],e[1],e[2]/2);
+}
+function strokeEl(st){
+  const el=document.createElementNS('http://www.w3.org/2000/svg','path');
+  if(st.t==='marker'){
+    el.setAttribute('d','M'+(st.s?st.p:smooth(st.p)).map(q=>f1(q[0])+' '+f1(q[1])).join('L'));
+    el.setAttribute('fill','none');el.setAttribute('stroke',st.c);el.setAttribute('stroke-opacity','.5');
+    el.setAttribute('stroke-width',st.p[0][2]);el.setAttribute('stroke-linecap','round');el.setAttribute('stroke-linejoin','round');el.setAttribute('class','mk');
+  }else if(st.s){            /* 図形にした線は太さ一定のなめらかな線で描く */
+    el.setAttribute('d','M'+st.p.map(q=>f1(q[0])+' '+f1(q[1])).join('L'));
+    el.setAttribute('fill','none');el.setAttribute('stroke',st.c);el.setAttribute('stroke-width',st.p[0][2]);
+    el.setAttribute('stroke-linecap','round');el.setAttribute('stroke-linejoin','round');
+  }else{el.setAttribute('d',outline(st.p));el.setAttribute('fill',st.c)}
+  return el;
+}
+function renderInk(){[...inkSvg.querySelectorAll('path')].forEach(n=>n.remove());strokes.forEach(s=>inkSvg.appendChild(strokeEl(s)))}
+function saveInk(){store.set(KEY('ink'),strokes)}
+function pushHist(){hist.push(strokes.slice());if(hist.length>60)hist.shift()}
+$('#undo').onclick=()=>{if(!hist.length)return;strokes=hist.pop();renderInk();saveInk()};
+let clearArm=null;
+$('#clear').onclick=()=>{const b=$('#clear');if(!clearArm){b.textContent='もう一度で消去';clearArm=setTimeout(()=>{b.textContent='全消去';clearArm=null},3000);return}
+  clearTimeout(clearArm);clearArm=null;b.textContent='全消去';if(strokes.length){pushHist();strokes=[];renderInk();saveInk()}};
+/* ---------- 道具の設定（色・太さ・消し方）。押した道具をもう一度押すと設定パネルが開く ---------- */
+const PALETTE={
+  pen:[['#1a1f23','黒'],['#d22d1b','赤'],['#1c5fb4','青'],['#1e8a3c','緑'],['#e07b00','オレンジ'],['#7a3db8','紫']],
+  marker:[['#ffd92e','黄'],['#ff8fc8','ピンク'],['#7fd3ff','水色'],['#a6e36b','黄緑'],['#ffb35c','オレンジ']]
+};
+const SIZES={pen:[2,3.1,5],marker:[12,20,32],eraser:[8,16,30]};
+/* 太さはスライダーで自由に選ぶ（画面上の太さ・px）。前の「細・中・太」の設定はそのまま引き継ぐ */
+const SIZE_RANGE={pen:[1,14,.5],marker:[6,48,1],eraser:[4,60,1]};
+function sizeOf(t){const c=cfg[t];return c.size!=null?c.size:SIZES[t][c.w!=null?c.w:1]}
+/* 道具の設定はどの教材でも共通 */
+let cfg=Object.assign({pen:{c:'#1a1f23',w:1},marker:{c:'#ffd92e',w:1},eraser:{mode:'part',w:1},laser:{c:'#ff2a1a',shape:'dot',trail:true}},store.get('tools')||store.get('01-yayoi:tools')||{});
+const LASER_COLORS=[['#ff2a1a','赤'],['#18c94a','緑'],['#2f7bff','青'],['#ff9d00','オレンジ'],['#e83ad8','ピンク']];
+const LASER_SHAPES=[['dot','光る点'],['arrow','矢印'],['ring','輪'],['hand','指さし'],['haniwa','はにわ'],['fairy','妖精']];
+const opts=$('#opts');
+function saveCfg(){store.set('tools',cfg)}
+function syncToolButtons(){
+  $$('#bar [data-tool]').forEach(b=>{b.setAttribute('aria-pressed',b.dataset.tool===tool);const sw=b.querySelector('.sw');if(sw&&cfg[b.dataset.tool]&&cfg[b.dataset.tool].c)sw.style.background=cfg[b.dataset.tool].c});
+}
+function closeOpts(){opts.hidden=true}
+function sizeSlider(t,label){
+  const [mn,mx,st]=SIZE_RANGE[t],v=sizeOf(t);
+  return `<div class="lab">${label}</div><div class="row sz"><input type="range" id="szr" min="${mn}" max="${mx}" step="${st}" value="${v}" aria-label="${label}"><span class="szv" id="szv">${v}</span><span class="szp"><i id="szp"></i></span></div>`;
+}
+function paintSizePreview(){
+  const p=$('#szp');if(!p)return;const t=tool,v=sizeOf(t);$('#szv').textContent=v;
+  if(t==='eraser')Object.assign(p.style,{width:v*2+'px',height:v*2+'px',borderRadius:'50%',background:'transparent',border:'1.5px solid #e8edf0',opacity:1});
+  else Object.assign(p.style,{width:'56px',height:Math.max(1,v)+'px',borderRadius:v+'px',background:cfg[t].c,border:'0',opacity:t==='marker'?.6:1});
+}
+opts.addEventListener('input',e=>{if(e.target.id==='szr'){cfg[tool].size=+e.target.value;paintSizePreview()}});
+opts.addEventListener('change',e=>{if(e.target.id==='szr')saveCfg()});
+function openOpts(){
+  const t=tool,c=cfg[t],esc=s=>String(s).replace(/"/g,'&quot;');
+  let h='';
+  if(t==='laser'){
+    h+=`<div class="lab">形</div><div class="row">`+LASER_SHAPES.map(([v,n])=>`<button data-shape="${v}" aria-pressed="${c.shape===v}">${n}</button>`).join('')+`</div>`;
+    h+=`<div class="lab">色</div><div class="row">`+LASER_COLORS.map(([v,n])=>`<button class="c" data-c="${v}" aria-label="${n}" aria-pressed="${v===c.c}"><i style="background:${v}"></i></button>`).join('')+`</div>`;
+    h+=`<div class="lab">なぞった跡</div><div class="row"><button data-trail="1" aria-pressed="${c.trail}">出す</button><button data-trail="0" aria-pressed="${!c.trail}">出さない</button></div>`;
+  }else if(t!=='eraser'){
+    const known=PALETTE[t].some(p=>p[0]===c.c);
+    h+=`<div class="lab">色</div><div class="row">`+PALETTE[t].map(([v,n])=>`<button class="c${t==='marker'?' sq':''}" data-c="${v}" aria-label="${n}" aria-pressed="${v===c.c}"><i style="background:${v}"></i></button>`).join('')+
+       `<button class="pick" data-pick="1" aria-pressed="${pickerOpen||!known}" aria-expanded="${pickerOpen}"><i style="background:${esc(c.c)}"></i>ほかの色</button></div>`;
+    if(pickerOpen)h+=`<div class="pk"><canvas id="sv" width="240" height="150" aria-label="色の明るさと鮮やかさ"></canvas><canvas id="hue" width="240" height="26" aria-label="色相"></canvas></div>`;
+    h+=sizeSlider(t,'太さ');
+    h+=`<div class="lab">書き終わりでペンを止めると、直線や図形に整える</div><div class="row"><button data-snap="1" aria-pressed="${cfg.snap!==false}">整える</button><button data-snap="0" aria-pressed="${cfg.snap===false}">整えない</button></div>`;
+  }else{
+    h+=`<div class="lab">消し方</div><div class="row"><button data-m="part" aria-pressed="${c.mode==='part'}">なぞった所だけ</button><button data-m="stroke" aria-pressed="${c.mode==='stroke'}">線ごと</button></div>`;
+    h+=sizeSlider(t,'大きさ');
+  }
+  opts.innerHTML=h;
+  opts.style.bottom=($('#bar').offsetHeight+8)+'px';
+  opts.hidden=false;
+  if(pickerOpen&&t!=='eraser'&&t!=='laser')setupPicker();
+  paintSizePreview();
+}
+opts.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;const c=cfg[tool];
+  if(b.dataset.c){c.c=b.dataset.c;pickerOpen=false}
+  if(b.dataset.pick)pickerOpen=!pickerOpen;
+  if(b.dataset.w)c.w=+b.dataset.w;
+  if(b.dataset.m)c.mode=b.dataset.m;
+  if(b.dataset.snap)cfg.snap=b.dataset.snap==='1';
+  if(b.dataset.shape)c.shape=b.dataset.shape;
+  if(b.dataset.trail)c.trail=b.dataset.trail==='1';
+  saveCfg();syncToolButtons();openOpts();
+});
+
+/* 「ほかの色」：Safariの色選択は全画面を解除してしまうので、パネルの中に自前の色選択を置く */
+let pickerOpen=false;
+function hexToHsv(hex){
+  const n=parseInt(hex.slice(1),16),r=(n>>16&255)/255,g=(n>>8&255)/255,b=(n&255)/255;
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0;
+  if(d){h=mx===r?((g-b)/d)%6:mx===g?(b-r)/d+2:(r-g)/d+4;h*=60;if(h<0)h+=360}
+  return[h,mx?d/mx:0,mx];
+}
+function hsvToHex(h,s,v){
+  const f=n=>{const k=(n+h/60)%6;return v-v*s*Math.max(0,Math.min(k,4-k,1))};
+  return'#'+[f(5),f(3),f(1)].map(x=>Math.round(x*255).toString(16).padStart(2,'0')).join('');
+}
+function setupPicker(){
+  const sv=$('#sv'),hue=$('#hue');let [H,S,V]=hexToHsv(cfg[tool].c);
+  function paint(){
+    const a=sv.getContext('2d'),w=sv.width,h=sv.height;
+    a.fillStyle=hsvToHex(H,1,1);a.fillRect(0,0,w,h);
+    let g=a.createLinearGradient(0,0,w,0);g.addColorStop(0,'#fff');g.addColorStop(1,'rgba(255,255,255,0)');a.fillStyle=g;a.fillRect(0,0,w,h);
+    g=a.createLinearGradient(0,0,0,h);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'#000');a.fillStyle=g;a.fillRect(0,0,w,h);
+    a.lineWidth=2;a.strokeStyle=V>.6&&S<.5?'#000':'#fff';a.beginPath();a.arc(S*w,(1-V)*h,8,0,7);a.stroke();
+    const b=hue.getContext('2d'),hw=hue.width,hh=hue.height,hg=b.createLinearGradient(0,0,hw,0);
+    for(let i=0;i<=6;i++)hg.addColorStop(i/6,hsvToHex(i*60%360,1,1));
+    b.fillStyle=hg;b.fillRect(0,0,hw,hh);b.lineWidth=3;b.strokeStyle='#fff';b.strokeRect(H/360*hw-3,1.5,6,hh-3);
+  }
+  function commit(){cfg[tool].c=hsvToHex(H,S,V);saveCfg();syncToolButtons();
+    const sw=opts.querySelector('[data-pick] i');if(sw)sw.style.background=cfg[tool].c;
+    paintSizePreview();
+    opts.querySelectorAll('[data-c]').forEach(b=>b.setAttribute('aria-pressed','false'))}
+  function drag(el,fn){
+    el.addEventListener('pointerdown',e=>{e.preventDefault();try{el.setPointerCapture(e.pointerId)}catch(_){};fn(e);
+      const mv=ev=>fn(ev),up=()=>{el.removeEventListener('pointermove',mv);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',up)};
+      el.addEventListener('pointermove',mv);el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up)});
+  }
+  const rel=(e,el)=>{const r=el.getBoundingClientRect();return[Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))]};
+  drag(sv,e=>{const[x,y]=rel(e,sv);S=x;V=1-y;paint();commit()});
+  drag(hue,e=>{const[x]=rel(e,hue);H=Math.min(359.9,x*360);if(S<.05)S=1;if(V<.05)V=.9;paint();commit()});
+  paint();
+}
+$$('#bar [data-tool]').forEach(b=>b.onclick=()=>{
+  if(tool===b.dataset.tool){opts.hidden?openOpts():closeOpts();return}
+  tool=b.dataset.tool;closeOpts();syncToolButtons();
+});
+syncToolButtons();
+
+let lctx=null,ldpr=1;
+function sizeLive(){const r=stage.getBoundingClientRect();ldpr=window.devicePixelRatio||1;live.width=Math.round(r.width*ldpr);live.height=Math.round(r.height*ldpr);
+  lctx=live.getContext('2d',{desynchronized:true});lctx.setTransform(ldpr,0,0,ldpr,0,0);lctx.lineCap='round';lctx.lineJoin='round'}
+function toSheet(e){const r=stage.getBoundingClientRect();return[(e.clientX-r.left-cam.x)/cam.s,(e.clientY-r.top-cam.y)/cam.s]}
+function toScreen(p){return[p[0]*cam.s+cam.x,p[1]*cam.s+cam.y]}
+/* 消しゴム：「線ごと」は触れた線を丸ごと消す。「なぞった所だけ」は触れた部分の点を取り除いて線を分ける */
+let lastErase=null;
+function eraserR(){return sizeOf('eraser')/cam.s}
+function eraseAt(pt){
+  const R=eraserR(),from=lastErase||pt;lastErase=pt;
+  const n=Math.max(1,Math.ceil(Math.hypot(pt[0]-from[0],pt[1]-from[1])/(R/2)));
+  const probes=[];for(let i=1;i<=n;i++)probes.push([from[0]+(pt[0]-from[0])*i/n,from[1]+(pt[1]-from[1])*i/n]);
+  const near=q=>probes.some(p=>Math.hypot(q[0]-p[0],q[1]-p[1])<R+q[2]/2);
+  let changed=false;const out=[];
+  for(const s of strokes){
+    if(!s.p.some(near)){out.push(s);continue}
+    changed=true;
+    if(cfg.eraser.mode==='stroke')continue;
+    let run=[];
+    const flush=()=>{if(run.length>=2||(run.length===1&&s.p.length===1))out.push({...s,p:run});run=[]};
+    for(const q of s.p){if(near(q))flush();else run.push(q)}
+    flush();
+  }
+  if(changed){strokes=out;renderInk()}
+  drawEraserRing(pt);
+}
+function drawEraserRing(pt){
+  lctx.clearRect(0,0,live.width/ldpr,live.height/ldpr);
+  if(!pt)return;const a=toScreen(pt);
+  lctx.save();lctx.lineWidth=1.5;lctx.strokeStyle='rgba(40,50,60,.8)';lctx.fillStyle='rgba(255,255,255,.35)';
+  lctx.beginPath();lctx.arc(a[0],a[1],sizeOf('eraser'),0,7);lctx.fill();lctx.stroke();lctx.restore();
+}
+
+/* iPadの長押しメニュー・文字選択・共有ポップアップを止める（touch 側の既定動作を止める） */
+['touchstart','touchmove','touchend','touchcancel'].forEach(t=>stage.addEventListener(t,e=>{if(e.cancelable)e.preventDefault()},{passive:false}));
+['gesturestart','gesturechange','gestureend','contextmenu','selectstart','dragstart','dblclick'].forEach(t=>stage.addEventListener(t,e=>e.preventDefault()));
+document.addEventListener('selectionchange',()=>{if(view==='check')return;const s=getSelection&&getSelection();if(s&&s.rangeCount&&!s.isCollapsed)s.removeAllRanges()});
+
+/* 入力の振り分け：ペンは書く、指は移動・拡大縮小・タップ送り */
+const touches=new Map();let drawing=null,erasing=false,lastPen=0,gesture=null,penDown=false;
+function isDrawInput(e){return e.pointerType==='pen'||e.pointerType==='mouse'}
+function widthFor(e,prev){
+  if(tool==='marker')return sizeOf('marker')/cam.s;
+  const pr=e.pointerType==='pen'&&e.pressure>0?e.pressure:.5;
+  const w=(sizeOf('pen')/cam.s)*(.55+pr*.9);
+  return prev==null?w:prev*.8+w*.2;
+}
+function liveSeg(pts){            /* 中点を結ぶ二次曲線で描く */
+  const n=pts.length;if(n<2)return;
+  const a=n>2?pts[n-3]:pts[n-2],b=pts[n-2],c=pts[n-1];
+  const m1=toScreen([(a[0]+b[0])/2,(a[1]+b[1])/2]),B=toScreen(b),m2=toScreen([(b[0]+c[0])/2,(b[1]+c[1])/2]);
+  lctx.strokeStyle=drawing.c;lctx.lineWidth=b[2]*cam.s;lctx.beginPath();lctx.moveTo(m1[0],m1[1]);lctx.quadraticCurveTo(B[0],B[1],m2[0],m2[1]);lctx.stroke();
+}
+/* ---------- 書いて終点でペンを止めると、直線・円・だ円・三角形・四角形・折れ線に整える ---------- */
+const HOLD_MS=550;let holdTimer=null,holdAt=null;
+function rdp(pts,eps){
+  if(pts.length<3)return pts.slice();
+  const a=pts[0],b=pts[pts.length-1];let dm=0,k=0;
+  for(let i=1;i<pts.length-1;i++){const d=segDist(pts[i],a,b);if(d>dm){dm=d;k=i}}
+  if(dm<=eps)return[a,b];
+  const l=rdp(pts.slice(0,k+1),eps),r=rdp(pts.slice(k),eps);return l.slice(0,-1).concat(r);
+}
+function segDist(p,a,b){const dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy;let t=L2?((p[0]-a[0])*dx+(p[1]-a[1])*dy)/L2:0;t=Math.max(0,Math.min(1,t));return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy)}
+function recognize(pts){
+  if(pts.length<4)return null;
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9,len=0;
+  pts.forEach((p,i)=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);if(i)len+=Math.hypot(p[0]-pts[i-1][0],p[1]-pts[i-1][1])});
+  const diag=Math.hypot(x1-x0,y1-y0),a=pts[0],b=pts[pts.length-1],ab=Math.hypot(b[0]-a[0],b[1]-a[1]);
+  if(len*cam.s<25)return null;
+  /* 直線 */
+  const dev=Math.max(...pts.map(p=>segDist(p,a,b)));
+  if(dev<Math.max(5/cam.s,ab*.07))return{kind:'line',v:[a,b]};
+  /* 閉じた図形 */
+  if(ab<Math.max(diag*.25,18/cam.s)){
+    const ring=pts.concat([a]);
+    let v=rdp(ring,diag*.09);
+    if(v.length>2&&Math.hypot(v[0][0]-v[v.length-1][0],v[0][1]-v[v.length-1][1])<diag*.2)v=v.slice(0,-1);
+    /* 始点が辺の途中にあると角が1つ多く数えられるので、ほぼ一直線の角は取り除く */
+    const straight=(p,q,r)=>{const u=[p[0]-q[0],p[1]-q[1]],w=[r[0]-q[0],r[1]-q[1]];const c=(u[0]*w[0]+u[1]*w[1])/((Math.hypot(...u)*Math.hypot(...w))||1);return c<-.94};
+    for(let i=0;i<v.length&&v.length>3;i++){const p=v[(i-1+v.length)%v.length],q=v[i],r=v[(i+1)%v.length];if(straight(p,q,r)){v.splice(i,1);i--}}
+    if(v.length===3)return{kind:'poly',v:v.concat([v[0]])};
+    if(v.length===4){
+      const axis=v.every((p,i)=>{const q=v[(i+1)%4],ang=Math.abs(Math.atan2(q[1]-p[1],q[0]-p[0])*180/Math.PI)%90;return ang<14||ang>76});
+      if(axis)return{kind:'poly',v:[[x0,y0],[x1,y0],[x1,y1],[x0,y1],[x0,y0]]};
+      return{kind:'poly',v:v.concat([v[0]])};
+    }
+    const cx=(x0+x1)/2,cy=(y0+y1)/2;let rx=(x1-x0)/2,ry=(y1-y0)/2;
+    if(Math.abs(rx-ry)/Math.max(rx,ry)<.15)rx=ry=(rx+ry)/2;
+    return{kind:'ellipse',cx,cy,rx,ry};
+  }
+  /* 開いた折れ線（角が1〜2個） */
+  const v=rdp(pts,diag*.08);
+  if(v.length<=4)return{kind:'poly',v};
+  return null;
+}
+function shapePoints(sh,w){
+  const out=[],step=2/cam.s;
+  if(sh.kind==='ellipse'){
+    const n=Math.max(48,Math.ceil(2*Math.PI*Math.max(sh.rx,sh.ry)/step));
+    for(let i=0;i<=n;i++){const t=i/n*2*Math.PI;out.push([sh.cx+sh.rx*Math.cos(t),sh.cy+sh.ry*Math.sin(t),w])}
+    return out;
+  }
+  const v=sh.v;
+  for(let i=0;i<v.length-1;i++){
+    const a=v[i],b=v[i+1],n=Math.max(1,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/step));
+    for(let k=0;k<n;k++)out.push([a[0]+(b[0]-a[0])*k/n,a[1]+(b[1]-a[1])*k/n,w]);
+  }
+  out.push([v[v.length-1][0],v[v.length-1][1],w]);
+  return out;
+}
+function redrawLive(){
+  lctx.clearRect(0,0,live.width/ldpr,live.height/ldpr);if(!drawing)return;
+  lctx.save();if(drawing.t==='marker')lctx.globalAlpha=.5;
+  lctx.strokeStyle=drawing.c;lctx.lineWidth=drawing.p[0][2]*cam.s;lctx.beginPath();
+  drawing.p.forEach((q,i)=>{const s=toScreen(q);i?lctx.lineTo(s[0],s[1]):lctx.moveTo(s[0],s[1])});lctx.stroke();lctx.restore();
+}
+function trySnap(){
+  holdTimer=null;if(!drawing||drawing.s||cfg.snap===false)return;
+  const sh=recognize(drawing.p);if(!sh)return;
+  const ws=drawing.p.map(q=>q[2]).sort((x,y)=>x-y),w=ws[Math.floor(ws.length/2)];
+  drawing.p=shapePoints(sh,w);drawing.s=1;redrawLive();
+}
+function armHold(e){
+  const p=[e.clientX,e.clientY];
+  if(!holdAt||Math.hypot(p[0]-holdAt[0],p[1]-holdAt[1])>3){holdAt=p;clearTimeout(holdTimer);holdTimer=setTimeout(trySnap,HOLD_MS)}
+}
+/* ---------- ポインター：なぞった所に赤く光る点と、すぐ消える軌跡を出す（書き込みとしては残らない） ---------- */
+let laser=null,laserRAF=0;const LASER_MS=650;
+function laserPush(e){const list=(e.getCoalescedEvents&&e.getCoalescedEvents().length)?e.getCoalescedEvents():[e];const r=stage.getBoundingClientRect();
+  list.forEach(ev=>laser.pts.push([ev.clientX-r.left,ev.clientY-r.top,performance.now()]));
+  /* 妖精は動かすと星くずをこぼす */
+  const now=performance.now(),p=laser.pts[laser.pts.length-1];laser.sp=laser.sp||[];
+  if(cfg.laser.shape==='fairy'&&p&&now-(laser.lastSp||0)>28){laser.lastSp=now;
+    const cols=['#ffd83d','#ff9ad5','#8fe3ff','#fff4a8'];
+    const o=pointerOffset(p[0]);
+    laser.sp.push({x:p[0]+o[0],y:p[1]+o[1],vx:(Math.random()-.5)*70,vy:(Math.random()-.6)*40,b:now,r:3+Math.random()*4,rot:Math.random()*3,c:cols[Math.floor(Math.random()*cols.length)]})}
+}
+/* ---------- キャラクターのポインター（オリジナルの絵をコードで描く。指先・星の先がペン先にくる） ---------- */
+function ell(g,x,y,rx,ry,rot=0){g.beginPath();g.ellipse(x,y,rx,ry,rot,0,Math.PI*2)}
+function drawHaniwa(g,t,moving,above){
+  /* 体はふわふわ上下し、止まっていると反対の手をゆっくり振る。above のときは体をペン先より上に置く */
+  const bob=Math.sin(t*3.2)*3+(above?-132:0),sway=moving?0:Math.sin(t*5)*.35;
+  const C='#c97a4a',D='#a35a30',O='#6e3b1c',H='#3a1d0e';
+  g.lineJoin='round';g.lineCap='round';
+  g.save();g.translate(0,bob);
+  /* 影 */
+  if(!above){g.save();g.globalAlpha=.18;g.fillStyle='#000';ell(g,62,124-Math.sin(t*3.2)*3,26,5);g.fill();g.restore()}
+  /* 胴体（筒形） */
+  g.fillStyle=C;g.strokeStyle=O;g.lineWidth=2.4;
+  g.beginPath();g.moveTo(42,62);g.quadraticCurveTo(38,92,40,118);g.lineTo(84,118);g.quadraticCurveTo(86,92,82,62);g.closePath();g.fill();g.stroke();
+  g.strokeStyle=D;g.lineWidth=1.6;g.beginPath();g.moveTo(42,104);g.lineTo(82,104);g.stroke();
+  /* 振る方の腕（右） */
+  g.save();g.translate(82,70);g.rotate(-.9+sway);
+  g.fillStyle=C;g.strokeStyle=O;g.lineWidth=2.2;g.beginPath();g.moveTo(-4,-5);g.lineTo(20,-6);g.quadraticCurveTo(27,0,20,6);g.lineTo(-4,5);g.closePath();g.fill();g.stroke();g.restore();
+  /* 首と頭 */
+  g.fillStyle=C;g.strokeStyle=O;g.lineWidth=2.4;
+  g.beginPath();g.rect(54,50,16,14);g.fill();g.stroke();
+  ell(g,62,36,21,22);g.fill();g.stroke();
+  /* みずら（両わきの髪） */
+  ell(g,38,44,6,11,.2);g.fill();g.stroke();ell(g,86,44,6,11,-.2);g.fill();g.stroke();
+  /* 目と口（くりぬいた穴） */
+  g.fillStyle=H;ell(g,54,34,4.2,5.4);g.fill();ell(g,70,34,4.2,5.4);g.fill();ell(g,62,47,4.6,3.6);g.fill();
+  g.fillStyle='rgba(255,220,190,.35)';ell(g,48,42,4,2.5);g.fill();ell(g,76,42,4,2.5);g.fill();
+  g.restore();
+  /* 指さす腕：肩（上下に動く）からペン先（0,0）まで伸ばす */
+  const sx=44,sy=70+bob,ang=Math.atan2(-sy,-sx),len=Math.hypot(sx,sy);
+  g.save();g.translate(sx,sy);g.rotate(ang);
+  g.fillStyle=C;g.strokeStyle=O;g.lineWidth=2.4;
+  g.beginPath();g.moveTo(0,-6);g.lineTo(len-14,-5);g.lineTo(len-14,5);g.lineTo(0,6);g.closePath();g.fill();g.stroke();
+  ell(g,len-11,0,7,7);g.fill();g.stroke();
+  g.beginPath();g.moveTo(len-8,-2.5);g.lineTo(len-1,-1.5);g.quadraticCurveTo(len+1.5,0,len-1,1.5);g.lineTo(len-8,2.5);g.closePath();g.fill();g.stroke();
+  g.restore();
+}
+function star(g,x,y,r,rot,points=5,inner=.45){g.beginPath();for(let i=0;i<points*2;i++){const a=rot+i*Math.PI/points,rr=i%2?r*inner:r;g.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr)}g.closePath()}
+function drawFairy(g,t,moving,above){
+  /* 羽はパタパタ、体はふわっと浮き沈み。指示棒の星は回ってきらめく */
+  const bob=Math.sin(t*4)*4+(above?-104:0),flap=.55+.45*Math.abs(Math.sin(t*16));
+  g.lineJoin='round';g.lineCap='round';
+  g.save();g.translate(0,bob);
+  /* 羽 */
+  g.save();g.translate(64,50);
+  g.fillStyle='rgba(170,225,255,.55)';g.strokeStyle='rgba(90,160,220,.9)';g.lineWidth=1.4;
+  g.save();g.scale(flap,1);ell(g,16,-12,18,10,-.6);g.fill();g.stroke();ell(g,12,6,12,7,.5);g.fill();g.stroke();g.restore();
+  g.save();g.scale(-flap*.8,1);ell(g,10,-14,14,8,.6);g.fill();g.stroke();g.restore();
+  g.restore();
+  /* ドレス */
+  g.fillStyle='#5cc98a';g.strokeStyle='#2f8a57';g.lineWidth=2;
+  g.beginPath();g.moveTo(58,52);g.quadraticCurveTo(50,70,44,82);g.quadraticCurveTo(60,88,76,80);g.quadraticCurveTo(70,66,66,52);g.closePath();g.fill();g.stroke();
+  /* 足 */
+  g.strokeStyle='#f0c9a8';g.lineWidth=3;g.beginPath();g.moveTo(56,84);g.lineTo(54,94);g.moveTo(66,83);g.lineTo(70,92);g.stroke();
+  /* 頭と髪 */
+  g.fillStyle='#ffe3cc';g.strokeStyle='#d9a37c';g.lineWidth=1.6;ell(g,62,40,11,11);g.fill();g.stroke();
+  g.fillStyle='#ffd34d';g.strokeStyle='#d9a21b';
+  g.beginPath();g.moveTo(50,40);g.quadraticCurveTo(50,25,63,26);g.quadraticCurveTo(76,26,74,40);g.quadraticCurveTo(70,32,62,33);g.quadraticCurveTo(54,32,50,40);g.fill();g.stroke();
+  ell(g,75,34,4,7,-.4);g.fill();g.stroke();
+  g.fillStyle='#3b2a20';ell(g,58,41,1.6,2);g.fill();ell(g,66,41,1.6,2);g.fill();
+  g.fillStyle='rgba(255,130,130,.5)';ell(g,55,45,2.4,1.5);g.fill();ell(g,69,45,2.4,1.5);g.fill();
+  g.strokeStyle='#b5643e';g.lineWidth=1.2;g.beginPath();g.arc(62,45,2.6,.2,Math.PI-.2);g.stroke();
+  g.restore();
+  /* 指示棒：手（上下に動く）から星（ペン先）まで */
+  const hx=50,hy=58+bob;
+  g.strokeStyle='#8a5a2b';g.lineWidth=3;g.beginPath();g.moveTo(hx,hy);g.lineTo(5,5);g.stroke();
+  g.fillStyle='#ffe3cc';g.strokeStyle='#d9a37c';g.lineWidth=1.4;ell(g,hx,hy,4,4);g.fill();g.stroke();
+  /* 星 */
+  const tw=1+.12*Math.sin(t*9);
+  g.save();g.shadowColor='rgba(255,215,64,1)';g.shadowBlur=16;
+  g.fillStyle='#ffd83d';g.strokeStyle='#e0a400';g.lineWidth=1.6;star(g,0,0,11*tw,t*1.5-Math.PI/2);g.fill();g.stroke();g.restore();
+}
+function drawSparkles(g,list,now){
+  list.forEach(s=>{const a=1-(now-s.b)/900;if(a<=0)return;const k=(now-s.b)/1000;
+    g.save();g.globalAlpha=a;g.fillStyle=s.c;star(g,s.x+s.vx*k,s.y+s.vy*k+40*k*k,s.r*(.6+.4*a),s.rot+k*3,4,.35);g.fill();g.restore()});
+}
+/* ポインターの「指している先」をペン先からどれだけずらすか。ペン先が形の右下にくる量。
+   画面の左端に近いときは左右反転して、ペン先が左下にくるようにする（[dx,dy,反転]） */
+const POINTER_OFFSET={arrow:[-37,-54],hand:[-27,-50],haniwa:[-90,-128],fairy:[-96,-98]};
+function pointerOffset(x){
+  const o=POINTER_OFFSET[cfg.laser.shape];if(!o)return[0,0,false];
+  const flip=x+o[0]<12;return[flip?-o[0]:o[0],o[1],flip];
+}
+function drawPointerHead(x,y,L,rgb){
+  const g=lctx;g.save();g.shadowColor=`rgba(${rgb},1)`;
+  if(L.shape==='haniwa'||L.shape==='fairy'){
+    const t=performance.now()/1000,moving=laser&&laser.pts.length>1&&performance.now()-laser.pts[laser.pts.length-1][2]<150;
+    /* 形はそのまま（左上を指す）。ペン先がキャラの右下＝足元にくるよう、全体を左上にずらして描く */
+    const o=pointerOffset(x);
+    g.shadowBlur=0;g.translate(x+o[0],y+o[1]);if(o[2])g.scale(-1,1);
+    if(L.shape==='haniwa')drawHaniwa(g,t,moving,false);else drawFairy(g,t,moving,false);
+    g.restore();return;
+  }
+  if(L.shape==='arrow'){            /* 左上を指す矢印。ペン先は矢印の右下 */
+    const s=1.7,P=[[0,0],[0,26],[7,20],[12,31],[17,29],[12,18],[21,18]],o=pointerOffset(x);
+    g.translate(x+o[0],y+o[1]);if(o[2])g.scale(-1,1);g.beginPath();P.forEach((p,i)=>i?g.lineTo(p[0]*s,p[1]*s):g.moveTo(p[0]*s,p[1]*s));g.closePath();
+    g.shadowBlur=14;g.fillStyle=L.c;g.fill();g.shadowBlur=0;g.lineWidth=2.5;g.strokeStyle='#fff';g.stroke();
+  }else if(L.shape==='ring'){       /* ペン先を囲む輪 */
+    g.shadowBlur=16;g.lineWidth=5;g.strokeStyle=L.c;g.beginPath();g.arc(x,y,28,0,7);g.stroke();
+    g.shadowBlur=0;g.fillStyle=`rgba(${rgb},.12)`;g.fill();
+  }else if(L.shape==='hand'){       /* 上を指す指さし。ペン先は手の右下 */
+    const o=pointerOffset(x);
+    g.font='46px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';g.textAlign='center';g.textBaseline='top';
+    g.translate(x+o[0],y+o[1]);if(o[2])g.scale(-1,1);
+    g.shadowColor='rgba(0,0,0,.35)';g.shadowBlur=8;g.fillText('👆',4,-3);
+  }else{                            /* 光る点 */
+    g.shadowBlur=22;g.fillStyle=L.c;g.beginPath();g.arc(x,y,10,0,7);g.fill();
+    g.shadowBlur=0;g.fillStyle='rgba(255,255,255,.85)';g.beginPath();g.arc(x,y,3.5,0,7);g.fill();
+  }
+  g.restore();
+}
+function laserFrame(){
+  const now=performance.now();lctx.clearRect(0,0,live.width/ldpr,live.height/ldpr);
+  if(!laser){laserRAF=0;return}
+  const last=laser.pts[laser.pts.length-1];
+  laser.pts=laser.pts.filter(p=>now-p[2]<LASER_MS);
+  if(laser.active&&last&&!laser.pts.length)laser.pts.push(last);   /* ペンを止めていても光る点は残す */
+  const P=laser.pts,L=cfg.laser,n=parseInt(L.c.slice(1),16),rgb=`${n>>16&255},${n>>8&255},${n&255}`;
+  lctx.save();lctx.lineCap='round';lctx.lineJoin='round';
+  /* 跡はペン先ではなく「指している先」に出す */
+  const off=P.length?pointerOffset(P[P.length-1][0]):[0,0];
+  if(L.trail)for(let i=1;i<P.length;i++){const a=1-(now-P[i][2])/LASER_MS;
+    lctx.strokeStyle=`rgba(${rgb},${(a*.85).toFixed(3)})`;lctx.lineWidth=2+a*5;lctx.shadowColor=`rgba(${rgb},.9)`;lctx.shadowBlur=10*a;
+    lctx.beginPath();lctx.moveTo(P[i-1][0]+off[0],P[i-1][1]+off[1]);lctx.lineTo(P[i][0]+off[0],P[i][1]+off[1]);lctx.stroke()}
+  laser.sp=(laser.sp||[]).filter(s=>now-s.b<900);drawSparkles(lctx,laser.sp,now);
+  if(laser.active&&P.length)drawPointerHead(P[P.length-1][0],P[P.length-1][1],L,rgb);
+  lctx.restore();
+  if(!laser.active&&!P.length&&!laser.sp.length){laser=null;laserRAF=0;lctx.clearRect(0,0,live.width/ldpr,live.height/ldpr);return}
+  laserRAF=requestAnimationFrame(laserFrame);
+}
+function addPoints(e){
+  if(drawing.s)return;           /* 図形に整えた後は形を変えない */
+  armHold(e);
+  const list=(e.getCoalescedEvents&&e.getCoalescedEvents().length)?e.getCoalescedEvents():[e];
+  for(const ev of list){
+    const q=toSheet(ev),pts=drawing.p,l=pts[pts.length-1];
+    if(Math.hypot(q[0]-l[0],q[1]-l[1])*cam.s<1.2)continue;
+    q.push(widthFor(ev,l[2]));pts.push(q);
+    if(drawing.t!=='marker')liveSeg(pts);
+  }
+  if(drawing.t==='marker'){
+    lctx.clearRect(0,0,live.width/ldpr,live.height/ldpr);lctx.globalAlpha=.5;lctx.strokeStyle=drawing.c;lctx.lineWidth=drawing.p[0][2]*cam.s;lctx.beginPath();
+    drawing.p.forEach((q,i)=>{const s=toScreen(q);i?lctx.lineTo(s[0],s[1]):lctx.moveTo(s[0],s[1])});lctx.stroke();lctx.globalAlpha=1;
+  }
+}
+stage.addEventListener('pointerdown',e=>{
+  if(view==='check'||!L)return;
+  e.preventDefault();keepAwake();
+  if(!opts.hidden){closeOpts();if(e.pointerType==='touch')return}   /* 設定パネルは画面に触れると閉じる */
+  if(view==='class'&&isDrawInput(e)){
+    if(e.pointerType==='pen'){lastPen=Date.now();touches.clear();gesture=null;penDown=true}
+    try{stage.setPointerCapture(e.pointerId)}catch(_){}
+    if(tool==='laser'){laser={id:e.pointerId,pts:[],active:true};laserPush(e);if(!laserRAF)laserRAF=requestAnimationFrame(laserFrame);return}
+    if(tool==='eraser'){pushHist();erasing=true;lastErase=null;eraseAt(toSheet(e));return}
+    const col=cfg[tool].c;
+    const q=toSheet(e);q.push(widthFor(e));drawing={id:e.pointerId,t:tool,c:col,p:[q]};
+    if(tool!=='marker'){const a=toScreen(q);lctx.fillStyle=col;lctx.beginPath();lctx.arc(a[0],a[1],q[2]*cam.s/2,0,7);lctx.fill()}
+    return;
+  }
+  if(e.pointerType==='touch'){
+    if(penDown||e.width>120)return;            /* ペンで書いている間の手のひらは無視 */
+    try{stage.setPointerCapture(e.pointerId)}catch(_){}
+    touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    const t0=[...touches.values()];
+    if(t0.length===1)gesture={sx:e.clientX,sy:e.clientY,t:Date.now(),moved:false,cam:{...cam},mode:1};
+    else if(t0.length>=2){const a=t0[0],b=t0[1];gesture={d:Math.hypot(a.x-b.x,a.y-b.y)||1,mx:(a.x+b.x)/2,my:(a.y+b.y)/2,cam:{...cam},mode:2,moved:true}}
+  }
+},{passive:false});
+stage.addEventListener('pointermove',e=>{
+  if(laser&&laser.active&&e.pointerId===laser.id){e.preventDefault();laserPush(e);return}
+  if(drawing&&e.pointerId===drawing.id){e.preventDefault();addPoints(e);return}
+  if(erasing){eraseAt(toSheet(e));return}
+  if(!touches.has(e.pointerId)||!gesture)return;
+  touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  const t=[...touches.values()],r=stage.getBoundingClientRect();
+  if(gesture.mode===1&&t.length===1){
+    const dx=e.clientX-gesture.sx,dy=e.clientY-gesture.sy;
+    if(!gesture.moved&&Math.hypot(dx,dy)<10)return;
+    gesture.moved=true;camTarget=null;setCam({s:gesture.cam.s,x:gesture.cam.x+dx,y:gesture.cam.y+dy},false);
+  }else if(gesture.mode===2&&t.length>=2){
+    const a=t[0],b=t[1],d=Math.hypot(a.x-b.x,a.y-b.y),mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+    const s=Math.max(.25,Math.min(6,gesture.cam.s*d/gesture.d));
+    const px=(gesture.mx-r.left-gesture.cam.x)/gesture.cam.s,py=(gesture.my-r.top-gesture.cam.y)/gesture.cam.s;
+    camTarget=null;setCam({s,x:mx-r.left-px*s,y:my-r.top-py*s},false);
+  }
+},{passive:false});
+function endPointer(e){
+  if(laser&&laser.active&&e.pointerId===laser.id){laser.active=false;if(e.pointerType==='pen'){lastPen=Date.now();penDown=false}return}
+  if(drawing&&e.pointerId===drawing.id){
+    clearTimeout(holdTimer);holdTimer=null;holdAt=null;
+    const st=drawing;drawing=null;lctx.clearRect(0,0,live.width/ldpr,live.height/ldpr);
+    if(e.type!=='pointercancel'||st.p.length>2){
+      const q=toSheet(e),l=st.p[st.p.length-1];if(!st.s&&Math.hypot(q[0]-l[0],q[1]-l[1])>0.2){q.push(l[2]);st.p.push(q)}
+      st.p=st.p.map(q=>[+q[0].toFixed(1),+q[1].toFixed(1),+q[2].toFixed(2)]);
+      pushHist();strokes.push(st);inkSvg.appendChild(strokeEl(st));saveInk();
+    }
+    if(e.pointerType==='pen'){lastPen=Date.now();penDown=false}
+    return;
+  }
+  if(erasing){erasing=false;lastErase=null;drawEraserRing(null);saveInk();if(e.pointerType==='pen'){lastPen=Date.now();penDown=false}return}
+  if(e.pointerType==='pen'){lastPen=Date.now();penDown=false}
+  if(touches.has(e.pointerId)){
+    const g=gesture;touches.delete(e.pointerId);
+    if(e.type==='pointerup'&&g&&g.mode===1&&!g.moved&&view==='class'&&Date.now()-g.t<350&&Date.now()-lastPen>900)go(1);
+    if(touches.size===0)gesture=null;
+    else if(touches.size===1){const t=[...touches.values()][0];gesture={sx:t.x,sy:t.y,t:0,moved:true,cam:{...cam},mode:1}}
+  }
+}
+stage.addEventListener('pointerup',endPointer);stage.addEventListener('pointercancel',endPointer);
+stage.addEventListener('wheel',e=>{
+  if(!L)return;e.preventDefault();const r=stage.getBoundingClientRect();camTarget=null;
+  if(e.ctrlKey){const s=Math.max(.25,Math.min(6,cam.s*Math.exp(-e.deltaY/200))),px=(e.clientX-r.left-cam.x)/cam.s,py=(e.clientY-r.top-cam.y)/cam.s;setCam({s,x:e.clientX-r.left-px*s,y:e.clientY-r.top-py*s},false)}
+  else setCam({s:cam.s,x:cam.x-e.deltaX,y:cam.y-e.deltaY},false);
+},{passive:false});
+
+/* ---------- 網羅チェック表 ---------- */
+function buildCheck(){
+  let checked=store.get(KEY('check'))||{};
+  const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  $('#rows').innerHTML=L.cover.map((c,i)=>`<tr><td><label><input type="checkbox" id="c${i}" aria-label="${esc(c[0])} を確認した" ${checked[i]?'checked':''}></label></td><td>${esc(c[0])}</td><td class="w">${esc(c[1])}</td></tr>`).join('');
+  $('#adds').innerHTML=L.adds.map(c=>`<tr><td>${esc(c[0])}</td><td class="w">${esc(c[1])}</td></tr>`).join('');
+  const prog=()=>{$('#progress').textContent=`（${L.cover.filter((_,i)=>checked[i]).length} / ${L.cover.length} 確認済み）`};
+  $('#rows').addEventListener('change',e=>{checked[e.target.id.slice(1)]=e.target.checked;store.set(KEY('check'),checked);prog()});prog();
+}
+
+/* ---------- 教材を開く ---------- */
+const bytes=b64=>{const s=atob(b64),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u};
+async function openLesson(data){
+  if(!window.pdfjsLib)throw new Error('PDFを表示する部品を読み込めませんでした。一度ネットにつないだ状態で開き直してね。');
+  LID=data.id||'01-yayoi';
+  strokes=store.get(KEY('ink'))||[];if(!Array.isArray(strokes))strokes=[];hist=[];
+  const opt={isEvalSupported:false,disableFontFace:true,useSystemFonts:false};
+  const [sd,ld]=await Promise.all([
+    pdfjsLib.getDocument({data:bytes(data.student),...opt}).promise,
+    pdfjsLib.getDocument({data:bytes(data.layers),...opt}).promise
+  ]);
+  L=data.layout;stuDoc=sd;layDoc=ld;
+  const v=(await stuDoc.getPage(1)).getViewport({scale:1});pageW=v.width/PT;pageH=v.height/PT;
+  idx=Math.min(Math.max(store.get(KEY('step'))||0,0),L.steps.length-1);
+  await buildPages();renderInk();buildCheck();
+  msg.hidden=true;setView(view);
+}
+
+/* ---------- 教材一覧（ホーム画面アプリ版）。教材は iPad の中（IndexedDB）にだけ保存する ---------- */
+const DB={
+  open(){return new Promise((res,rej)=>{const r=indexedDB.open('jugyo-print',1);r.onupgradeneeded=()=>r.result.createObjectStore('lessons',{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})},
+  async tx(mode,fn){const db=await this.open();return new Promise((res,rej)=>{const t=db.transaction('lessons',mode),s=t.objectStore('lessons');const r=fn(s);t.oncomplete=()=>res(r&&r.result);t.onerror=()=>rej(t.error)})},
+  all(){return this.tx('readonly',s=>s.getAll())},
+  get(id){return this.tx('readonly',s=>s.get(id))},
+  put(o){return this.tx('readwrite',s=>s.put(o))},
+  del(id){return this.tx('readwrite',s=>s.delete(id))}
+};
+const libEl=$('#lib');
+function libMsg(t,bad){const m=$('#libmsg');m.textContent=t;m.dataset.bad=bad?'1':''}
+async function renderLib(){
+  let list=[];try{list=await DB.all()}catch(e){libMsg('iPadの保存場所を開けませんでした。プライベートブラウズだと使えないよ。',true)}
+  list.sort((a,b)=>String(a.id).localeCompare(String(b.id),'ja'));
+  const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  $('#liblist').innerHTML=list.length?list.map(l=>`<li><button class="open" data-open="${esc(l.id)}"><b>${esc(l.title||l.id)}</b><small>${esc(new Date(l.added).toLocaleDateString('ja-JP'))} に読み込み</small></button><button class="del" data-del="${esc(l.id)}">削除</button></li>`).join('')
+    :'<li class="empty">まだ教材がありません。下の「教材を読み込む」から、作成した教材ファイル（.lesson.json）を選んでね。</li>';
+}
+$('#liblist').addEventListener('click',async e=>{
+  const o=e.target.closest('[data-open]'),d=e.target.closest('[data-del]');
+  if(o){location.hash='lesson='+encodeURIComponent(o.dataset.open);location.reload();return}
+  if(d){
+    if(d.dataset.arm!=='1'){d.dataset.arm='1';d.textContent='もう一度で削除';setTimeout(()=>{d.dataset.arm='';d.textContent='削除'},3000);return}
+    await DB.del(d.dataset.del);libMsg('削除しました。');renderLib();
+  }
+});
+$('#libfile').addEventListener('change',async e=>{
+  const f=e.target.files&&e.target.files[0];e.target.value='';if(!f)return;
+  try{
+    const o=JSON.parse(await f.text());
+    if(o.format!=='jugyo-print-lesson'||!o.id||!o.layout||!o.student||!o.layers)throw new Error('format');
+    const had=await DB.get(o.id);
+    await DB.put({id:o.id,title:o.title||o.layout.title||o.id,added:Date.now(),data:o});
+    libMsg(`「${o.title||o.id}」を${had?'新しい版に入れ替えました':'読み込みました'}。`);renderLib();
+  }catch(err){libMsg('このファイルは教材ファイルとして読み込めませんでした。build.ps1 で作った .lesson.json を選んでね。',true)}
+});
+$('#tolib').onclick=()=>{location.hash='';location.reload()};
+
+/* ---------- 起動 ---------- */
+const SITE=!document.getElementById('lesson-data');
+const STANDALONE=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+if(STANDALONE)$('#fs').hidden=true;
+if(!SITE)$('#tolib').hidden=true;
+function viewFromHash(){if(SITE)return'class';const h=location.hash.slice(1);return['student','answer','check'].includes(h)?h:'class'}
+window.addEventListener('hashchange',()=>{if(!SITE)setView(viewFromHash())});
+async function start(){
+  sizeLive();setView(viewFromHash());
+  try{
+    if(!SITE){openLesson(JSON.parse(document.getElementById('lesson-data').textContent)).catch(e=>{msg.textContent=e&&e.message?e.message:'プリントを読み込めませんでした';console.error(e)});return}
+    if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+    const m=location.hash.match(/^#lesson=(.+)$/);
+    if(m){
+      const rec=await DB.get(decodeURIComponent(m[1]));
+      if(rec){await openLesson(rec.data);return}
+    }
+    msg.hidden=true;libEl.hidden=false;renderLib();
+  }catch(e){msg.textContent=e&&e.message?e.message:'プリントを読み込めませんでした';console.error(e)}
+}
+start();
+})();
+</script>
+</body></html>
