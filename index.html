@@ -227,12 +227,14 @@ async function renderDetail(){
 sheet.addEventListener('transitionend',settle);
 
 /* ---------- カメラ ---------- */
-function rectOf(id){const t=L.targets[id];return{x:t.x,y:t.page*(pageH+GAP)+t.y,w:t.w,h:t.h,isPage:id[0]==='p'}}
+function rectOf(id){const t=L.targets[id];return{x:t.x,y:t.page*(pageH+GAP)+t.y,w:t.w,h:t.h,isPage:id[0]==='p',v:!!t.v}}
 function setCam(c,animated){sheet.classList.toggle('free',!animated);cam=c;sheet.style.transform=`translate(${c.x}px,${c.y}px) scale(${c.s})`;if(!animated)settle()}
 function fit(id,animated){
   const t=rectOf(id),r=stage.getBoundingClientRect(),pad=10;
   let x0,w,y0,h;
-  if(t.isPage){x0=0;w=pageW;y0=t.y;h=pageH}else{x0=30;w=pageW-60;y0=t.y-14;h=t.h+28}
+  if(t.isPage){x0=0;w=pageW;y0=t.y;h=pageH}
+  else if(t.v){x0=t.x;w=t.w;y0=t.y;h=t.h}   /* 縦書きの教材：決めた範囲をそのまま映す */
+  else{x0=30;w=pageW-60;y0=t.y-14;h=t.h+28}
   const s=Math.min((r.width-pad*2)/w,(r.height-pad*2)/h,t.isPage?9:2.4);
   setCam({s,x:(r.width-w*s)/2-x0*s,y:(r.height-h*s)/2-y0*s},animated);camTarget=id;
   if(animated)settle();
