@@ -31,6 +31,10 @@ body{position:fixed;inset:0;display:flex;flex-direction:column;-webkit-user-sele
 #bar button:disabled{opacity:.35}
 #bar .sw{display:inline-block;width:18px;height:18px;border-radius:50%;vertical-align:-4px;margin-right:6px;box-shadow:0 0 0 1px rgba(255,255,255,.35)}
 #bar .sw.sq{border-radius:4px}
+#bar [data-tool]{display:inline-flex;align-items:center;justify-content:center}
+#bar .tic{display:flex;flex-direction:column;align-items:center;gap:3px}
+#bar .ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#bar .sw.ul{width:22px;height:4px;border-radius:2px;margin:0;vertical-align:0}
 #bar [aria-haspopup]::after{content:"▾";margin-left:5px;color:var(--bar-dim);font-size:11px}
 /* 道具の設定パネル（使っている道具のボタンをもう一度押すと開く） */
 #opts{position:fixed;left:max(12px,env(safe-area-inset-left,0px));z-index:5;background:#232c32;border:1px solid var(--bar-line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.45);max-width:calc(100vw - 24px)}
@@ -91,6 +95,13 @@ body[data-view="check"] #stage{display:none}
 #libmsg{margin:0;min-height:1.5em;font-size:14px;color:#9fd7a8}
 #libmsg[data-bad="1"]{color:#f3b4ad}
 #lib button:focus-visible,#lib .imp:focus-within{outline:2px solid #9cc4e4;outline-offset:2px}
+/* 目次（選ぶとその見出しへ飛ぶ。それより前の答えは出た状態になる） */
+#toc{position:fixed;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(66px + env(safe-area-inset-bottom,0px));z-index:6;width:min(440px,calc(100vw - 24px));max-height:calc(100vh - 100px);overflow:auto;-webkit-overflow-scrolling:touch;background:#232c32;border:1px solid var(--bar-line);border-radius:12px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:2px}
+#toc[hidden]{display:none}
+#toc button{font:inherit;font-size:15px;text-align:left;color:var(--bar-fg);background:transparent;border:1px solid transparent;border-radius:8px;min-height:44px;padding:6px 12px;cursor:pointer;touch-action:manipulation}
+#toc button.g{font-weight:700}
+#toc button[aria-current="true"]{background:var(--bar-on);border-color:#8fa5b4}
+#toc button:focus-visible{outline:2px solid #9cc4e4;outline-offset:1px}
 @media (prefers-reduced-motion:reduce){#sheet,.ly{transition:none}}
 </style>
 
@@ -121,12 +132,15 @@ body[data-view="check"] #stage{display:none}
   </div>
 </section>
 <div id="opts" role="dialog" aria-label="道具の設定" hidden></div>
+<div id="toc" role="dialog" aria-label="目次" hidden></div>
 <nav id="bar" aria-label="操作">
   <span class="classonly" style="display:contents">
-    <button data-tool="pen" aria-pressed="true" aria-haspopup="true"><span class="sw"></span>ペン</button>
-    <button data-tool="marker" aria-pressed="false" aria-haspopup="true"><span class="sw sq"></span>マーカー</button>
-    <button data-tool="eraser" aria-pressed="false" aria-haspopup="true">消しゴム</button>
-    <button data-tool="laser" aria-pressed="false" aria-haspopup="true"><span class="sw" style="background:#ff2a1a;box-shadow:0 0 6px 2px rgba(255,255,255,.5)"></span>ポインター</button>
+    <!-- 道具はアイコンだけ（名前は aria-label と長押しの title） -->
+    <button data-tool="pen" aria-pressed="true" aria-haspopup="true" aria-label="ペン" title="ペン"><span class="tic"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20l1.2-4.6L16.5 4.1a2 2 0 0 1 2.8 0l.6.6a2 2 0 0 1 0 2.8L8.6 18.8z"/><path d="M14.5 6.1l3.4 3.4"/></svg><span class="sw ul"></span></span></button>
+    <button data-tool="marker" aria-pressed="false" aria-haspopup="true" aria-label="マーカー" title="マーカー"><span class="tic"><svg class="ic" viewBox="0 0 24 24"><path d="M9 15l-3.5 3.5H3l2.5-6.5z"/><path d="M5.5 12l9.8-9.2 5.9 5.9L12 18.5z"/></svg><span class="sw ul"></span></span></button>
+    <button data-tool="eraser" aria-pressed="false" aria-haspopup="true" aria-label="消しゴム" title="消しゴム"><span class="tic"><svg class="ic" viewBox="0 0 24 24"><path d="M8.5 20L3.7 15.2a2 2 0 0 1 0-2.8L13 3.1a2 2 0 0 1 2.8 0l5.1 5.1a2 2 0 0 1 0 2.8L11.5 20z"/><path d="M8 8.8l7.2 7.2M8.5 20H21"/></svg></span></button>
+    <button data-tool="laser" aria-pressed="false" aria-haspopup="true" aria-label="ポインター" title="ポインター"><span class="tic"><span class="sw" style="background:#ff2a1a;box-shadow:0 0 6px 2px rgba(255,255,255,.5);margin:0"></span></span></button>
+    <button data-tool="move" aria-pressed="false" aria-label="移動（ペンでなぞるとプリントが動く）" title="移動"><span class="tic"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg></span></button>
     <button id="undo">戻す</button>
     <button id="clear">全消去</button>
     <span class="sep"></span>
@@ -140,6 +154,7 @@ body[data-view="check"] #stage{display:none}
   <span class="gap"></span>
   <span class="classonly" style="display:contents">
     <span id="hint"></span>
+    <button id="tocb" aria-haspopup="true" aria-expanded="false">目次</button>
     <button id="first">最初へ</button>
     <button id="whole">全体</button>
     <button id="prev" aria-label="前へ">◀</button>
@@ -252,14 +267,49 @@ function apply(animated=true){
   const on=revealed();
   Object.values(layers).forEach(l=>{const v=on.has(l.id);if(v)renderLayer(l);l.div.classList.toggle('on',v)});
   if(view==='class'){
-    fit(L.steps[idx].c,animated);
+    fit(tocHold||L.steps[idx].c,animated);
     $('#count').textContent=`${idx+1} / ${L.steps.length}`;
     $('#hint').textContent=idx<L.steps.length-1?`次：${L.steps[idx+1].n}`:'最後まで進んだよ';
     $('#prev').disabled=idx===0;$('#first').disabled=idx===0;$('#next').disabled=idx===L.steps.length-1;
     store.set(KEY('step'),idx);
   }else if(view!=='check')fitWidth();
 }
-function go(d){const n=idx+d;if(n<0||n>=L.steps.length)return;idx=n;apply(true)}
+function go(d){const n=idx+d;if(n<0||n>=L.steps.length)return;idx=n;
+  /* 目次で飛んだあとは、次の答えが今の窓に入っているあいだは窓を動かさない */
+  if(tocHold&&!(d===1&&inHold(L.steps[idx],tocHold)))tocHold=null;
+  apply(true)}
+function toStart(){tocHold=null;idx=0;apply(true)}
+
+/* ---------- 目次 ---------- */
+let tocHold=null;
+const tocEl=$('#toc'),tocBtn=$('#tocb');
+function inHold(st,id){
+  const t=L.targets[id],rs=st.r||[];if(!t||!rs.length)return false;
+  return rs.every(r=>{const l=layers[r];return l&&l.page===t.page&&l.x>=t.x-4&&l.y>=t.y-4&&l.x+l.w<=t.x+t.w+4&&l.y+l.h<=t.y+t.h+4});
+}
+/* 目次のない教材は、ページごとの一覧にする */
+function tocList(){
+  if(Array.isArray(L.toc)&&L.toc.length)return L.toc;
+  return L.steps.map((s,i)=>s.c&&s.c[0]==='p'&&!(s.r&&s.r.length)?{n:s.n,i,c:s.c}:null).filter(Boolean);
+}
+function closeToc(){tocEl.hidden=true;tocBtn.setAttribute('aria-expanded','false')}
+function openToc(){
+  const list=tocList(),esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  let cur=-1;list.forEach((e,k)=>{if(e.i<=idx)cur=k});
+  tocEl.innerHTML=list.map((e,k)=>`<button data-k="${k}"${e.g?' class="g"':''} aria-current="${k===cur}">${esc(e.g||e.n)}</button>`).join('');
+  tocEl.hidden=false;tocBtn.setAttribute('aria-expanded','true');
+  const c=tocEl.querySelector('[aria-current="true"]');if(c)c.scrollIntoView({block:'center'});
+}
+tocBtn.onclick=()=>{if(tocEl.hidden)openToc();else closeToc()};
+tocEl.addEventListener('click',e=>{
+  const b=e.target.closest('[data-k]');if(!b)return;
+  const t=tocList()[+b.dataset.k];closeToc();
+  idx=Math.min(Math.max(t.i,0),L.steps.length-1);
+  tocHold=t.c&&L.targets[t.c]&&t.c!==L.steps[idx].c?t.c:null;
+  apply(true);
+});
+document.addEventListener('pointerdown',e=>{if(!tocEl.hidden&&!tocEl.contains(e.target)&&!tocBtn.contains(e.target))closeToc()},true);
+addEventListener('keydown',e=>{if(e.key==='Escape'&&!tocEl.hidden)closeToc()});
 function setView(v){
   view=v;document.body.dataset.view=v;$('#check').hidden=v!=='check';
   $$('#bar [data-view]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.view===v));
@@ -267,10 +317,10 @@ function setView(v){
   if(L)apply(false);
 }
 $('#next').onclick=()=>go(1);$('#prev').onclick=()=>go(-1);
-$('#first').onclick=()=>{idx=0;apply(true)};
+$('#first').onclick=toStart;
 $('#whole').onclick=()=>{const t=L.targets[L.steps[idx].c];fit('p'+(t.page+1),true)};
 $$('#bar [data-view]').forEach(b=>b.onclick=()=>setView(b.dataset.view));
-addEventListener('keydown',e=>{if(view!=='class'||!L)return;if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(1)}if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();go(-1)}if(e.key==='Home'){e.preventDefault();idx=0;apply(true)}});
+addEventListener('keydown',e=>{if(view!=='class'||!L)return;if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(1)}if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();go(-1)}if(e.key==='Home'){e.preventDefault();toStart()}});
 addEventListener('resize',()=>{sizeLive();if(!L)return;if(view==='class'){if(camTarget)fit(camTarget,false);else settle()}else if(view!=='check')fitWidth()});
 
 /* ---------- 全画面・画面の自動消灯防止 ---------- */
@@ -431,7 +481,7 @@ function setupPicker(){
   paint();
 }
 $$('#bar [data-tool]').forEach(b=>b.onclick=()=>{
-  if(tool===b.dataset.tool){opts.hidden?openOpts():closeOpts();return}
+  if(tool===b.dataset.tool){if(tool!=='move')opts.hidden?openOpts():closeOpts();return}
   tool=b.dataset.tool;closeOpts();syncToolButtons();
 });
 syncToolButtons();
@@ -475,7 +525,7 @@ function drawEraserRing(pt){
 document.addEventListener('selectionchange',()=>{if(view==='check')return;const s=getSelection&&getSelection();if(s&&s.rangeCount&&!s.isCollapsed)s.removeAllRanges()});
 
 /* 入力の振り分け：ペンは書く、指は移動・拡大縮小・タップ送り */
-const touches=new Map();let drawing=null,erasing=false,lastPen=0,gesture=null,penDown=false;
+const touches=new Map();let panning=null,drawing=null,erasing=false,lastPen=0,gesture=null,penDown=false;
 function isDrawInput(e){return e.pointerType==='pen'||e.pointerType==='mouse'}
 function widthFor(e,prev){
   if(tool==='marker')return sizeOf('marker')/cam.s;
@@ -724,6 +774,8 @@ stage.addEventListener('pointerdown',e=>{
   if(view==='class'&&isDrawInput(e)){
     if(e.pointerType==='pen'){lastPen=Date.now();touches.clear();gesture=null;penDown=true}
     try{stage.setPointerCapture(e.pointerId)}catch(_){}
+    /* 「移動」：ペン（とマウス）でなぞるとプリントが動く。書き込みはしない */
+    if(tool==='move'){panning={id:e.pointerId,sx:e.clientX,sy:e.clientY,cam:{...cam}};return}
     if(tool==='laser'){laser={id:e.pointerId,pts:[],active:true};laserPush(e);if(!laserRAF)laserRAF=requestAnimationFrame(laserFrame);return}
     if(tool==='eraser'){pushHist();erasing=true;lastErase=null;eraseAt(toSheet(e));return}
     const col=cfg[tool].c;
@@ -742,6 +794,7 @@ stage.addEventListener('pointerdown',e=>{
 },{passive:false});
 stage.addEventListener('pointermove',e=>{
   if(laser&&laser.active&&e.pointerId===laser.id){e.preventDefault();laserPush(e);return}
+  if(panning&&e.pointerId===panning.id){e.preventDefault();camTarget=null;setCam({s:panning.cam.s,x:panning.cam.x+e.clientX-panning.sx,y:panning.cam.y+e.clientY-panning.sy},false);return}
   if(drawing&&e.pointerId===drawing.id){e.preventDefault();addPoints(e);return}
   if(erasing){eraseAt(toSheet(e));return}
   if(!touches.has(e.pointerId)||!gesture)return;
@@ -759,6 +812,7 @@ stage.addEventListener('pointermove',e=>{
   }
 },{passive:false});
 function endPointer(e){
+  if(panning&&e.pointerId===panning.id){panning=null;if(e.pointerType==='pen'){lastPen=Date.now();penDown=false}return}
   if(laser&&laser.active&&e.pointerId===laser.id){laser.active=false;if(e.pointerType==='pen'){lastPen=Date.now();penDown=false}return}
   if(drawing&&e.pointerId===drawing.id){
     clearTimeout(holdTimer);holdTimer=null;holdAt=null;
