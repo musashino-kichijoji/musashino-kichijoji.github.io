@@ -283,7 +283,7 @@ function fit(id,animated){
   if(t.isPage){x0=0;w=pageW;y0=t.y;h=pageH}
   else if(t.v){x0=t.x;w=t.w;y0=t.y;h=t.h}   /* 縦書きの教材：決めた範囲をそのまま映す */
   else{x0=30;w=pageW-60;y0=t.y-14;h=t.h+28}
-  const s=Math.min((r.width-pad*2)/w,(reg.h-pad*2)/h,t.isPage?9:2.4);
+  const s=Math.min((r.width-pad*2)/w,(reg.h-pad*2)/h,t.isPage?9:t.v?5:2.4);   /* 決めた範囲（v）は図に寄るときも大きく映す */
   setCam({s,x:(r.width-w*s)/2-x0*s,y:reg.top+(reg.h-h*s)/2-y0*s},animated);camTarget=id;
   if(animated)settle();
 }
