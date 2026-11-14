@@ -103,6 +103,16 @@ body[data-view="check"] #stage{display:none}
 /* 目次（選ぶとその見出しへ飛ぶ。それより前の答えは出た状態になる） */
 #toc{position:fixed;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(66px + env(safe-area-inset-bottom,0px));z-index:6;width:min(440px,calc(100vw - 24px));max-height:calc(100vh - 100px);overflow:auto;-webkit-overflow-scrolling:touch;background:#232c32;border:1px solid var(--bar-line);border-radius:12px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:2px}
 #toc[hidden]{display:none}
+/* プロジェクターに映る範囲：外側を暗くする（設定を開いているあいだは黄色の点線でふちを出す） */
+#projwin{position:absolute;left:0;right:0;pointer-events:none;box-shadow:0 0 0 100vmax rgba(0,0,0,.42);z-index:2}
+#projwin[hidden]{display:none}
+#projwin.adj{outline:3px dashed #ffd400;outline-offset:-3px}
+#proj{position:fixed;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(66px + env(safe-area-inset-bottom,0px));z-index:6;width:min(400px,calc(100vw - 24px));background:#232c32;border:1px solid var(--bar-line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+#proj[hidden]{display:none}
+#proj .lab{font-size:12px;color:var(--bar-dim);line-height:1.5}
+#proj .row{display:flex;flex-wrap:wrap;gap:8px}
+#proj button{font:inherit;font-size:14px;color:var(--bar-fg);background:transparent;border:1px solid var(--bar-line);border-radius:8px;min-width:44px;height:44px;padding:0 12px;cursor:pointer;touch-action:manipulation}
+#proj button[aria-pressed="true"]{background:var(--bar-on);border-color:#b8cad6}
 #toc button{font:inherit;font-size:15px;text-align:left;color:var(--bar-fg);background:transparent;border:1px solid transparent;border-radius:8px;min-height:44px;padding:6px 12px;cursor:pointer;touch-action:manipulation}
 #toc button.g{font-weight:700}
 #toc button[aria-current="true"]{background:var(--bar-on);border-color:#8fa5b4}
@@ -113,6 +123,7 @@ body[data-view="check"] #stage{display:none}
 <div id="stage">
   <div id="sheet"><svg id="ink" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg></div>
   <canvas id="live" aria-hidden="true"></canvas>
+  <div id="projwin" aria-hidden="true" hidden></div>
   <div id="msg">プリントを読み込んでいます…</div>
 </div>
 
@@ -138,6 +149,7 @@ body[data-view="check"] #stage{display:none}
 </section>
 <div id="opts" role="dialog" aria-label="道具の設定" hidden></div>
 <div id="toc" role="dialog" aria-label="目次" hidden></div>
+<div id="proj" role="dialog" aria-label="プロジェクター合わせ" hidden></div>
 <nav id="bar" aria-label="操作">
   <span class="classonly" style="display:contents">
     <!-- 道具はアイコンだけ（名前は aria-label と長押しの title） -->
@@ -154,6 +166,7 @@ body[data-view="check"] #stage{display:none}
   <button data-view="student" aria-pressed="false">生徒用</button>
   <button data-view="answer" aria-pressed="false">解答入り</button>
   <button data-view="check" aria-pressed="false">確認表</button>
+  <button id="projb" class="classonly" aria-haspopup="true" aria-expanded="false">投影</button>
   <button id="fs">全画面</button>
   <button id="tolib">教材一覧</button>
   <span class="gap"></span>
@@ -254,14 +267,24 @@ sheet.addEventListener('transitionend',settle);
 /* ---------- カメラ ---------- */
 function rectOf(id){const t=L.targets[id];return{x:t.x,y:t.page*(pageH+GAP)+t.y,w:t.w,h:t.h,isPage:id[0]==='p',v:!!t.v}}
 function setCam(c,animated){sheet.classList.toggle('free',!animated);cam=c;sheet.style.transform=`translate(${c.x}px,${c.y}px) scale(${c.s})`;if(!animated)settle()}
+/* ---------- プロジェクター合わせ（iPad→Zoom→PC→プロジェクター） ----------
+   Zoom は iPad の画面を PC（16:9）の横いっぱいに広げるので、映るのは iPad の画面の上から「横幅×9/16」だけ。
+   オンのときは、その範囲（projRegion）の中に窓を収め、映らない所は暗くする。位置と高さは少しずつ直せる。設定はこのiPadに覚える */
+let proj=Object.assign({on:true,dy:0,dh:0},store.get('proj')||{});
+function projRegion(){
+  const r=stage.getBoundingClientRect();
+  if(!proj.on)return{top:0,h:r.height,on:false};
+  const top=Math.max(0,proj.dy-r.top),h=Math.max(120,Math.min(r.height-top,Math.round(innerWidth*9/16)+proj.dh));
+  return{top,h,on:h<r.height-1||top>0};
+}
 function fit(id,animated){
-  const t=rectOf(id),r=stage.getBoundingClientRect(),pad=10;
+  const t=rectOf(id),r=stage.getBoundingClientRect(),pad=10,reg=projRegion();
   let x0,w,y0,h;
   if(t.isPage){x0=0;w=pageW;y0=t.y;h=pageH}
   else if(t.v){x0=t.x;w=t.w;y0=t.y;h=t.h}   /* 縦書きの教材：決めた範囲をそのまま映す */
   else{x0=30;w=pageW-60;y0=t.y-14;h=t.h+28}
-  const s=Math.min((r.width-pad*2)/w,(r.height-pad*2)/h,t.isPage?9:2.4);
-  setCam({s,x:(r.width-w*s)/2-x0*s,y:(r.height-h*s)/2-y0*s},animated);camTarget=id;
+  const s=Math.min((r.width-pad*2)/w,(reg.h-pad*2)/h,t.isPage?9:2.4);
+  setCam({s,x:(r.width-w*s)/2-x0*s,y:reg.top+(reg.h-h*s)/2-y0*s},animated);camTarget=id;
   if(animated)settle();
 }
 function fitWidth(){const r=stage.getBoundingClientRect(),s=Math.min((r.width-16)/pageW,1.6);setCam({s,x:(r.width-pageW*s)/2,y:8},false);camTarget=null}
@@ -327,6 +350,7 @@ function setView(v){
   $$('#bar [data-view]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.view===v));
   if(!document.getElementById('lib')||document.getElementById('lesson-data'))try{const h=v==='class'?'':'#'+v;if(location.hash!==h)history.replaceState(null,'',location.pathname+location.search+h)}catch(e){}
   if(L)apply(false);
+  updProj();
 }
 $('#next').onclick=()=>go(1);$('#prev').onclick=()=>go(-1);
 $('#first').onclick=toStart;
@@ -334,6 +358,37 @@ $('#whole').onclick=()=>{const t=L.targets[L.steps[idx].c];fit('p'+(t.page+1),tr
 $$('#bar [data-view]').forEach(b=>b.onclick=()=>setView(b.dataset.view));
 addEventListener('keydown',e=>{if(view!=='class'||!L)return;if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(1)}if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();go(-1)}if(e.key==='Home'){e.preventDefault();toStart()}});
 addEventListener('resize',()=>{sizeLive();if(!L)return;if(view==='class'){if(camTarget)fit(camTarget,false);else settle()}else if(view!=='check')fitWidth()});
+
+/* ---------- プロジェクター合わせの設定（「投影」ボタン） ---------- */
+const projEl=$('#proj'),projBtn=$('#projb'),projWin=$('#projwin');
+function updProj(){
+  const reg=projRegion(),show=view==='class'&&reg.on&&!!L;
+  projWin.hidden=!show;
+  if(show)Object.assign(projWin.style,{top:reg.top+'px',height:reg.h+'px'});
+  projWin.classList.toggle('adj',!projEl.hidden);
+}
+function saveProj(){store.set('proj',proj)}
+function openProj(){
+  projEl.innerHTML=`<div class="lab">Zoomで映すと、iPadの画面の上のほうだけがプロジェクターに映るよ。「合わせる」にすると、その中に窓を収めて、映らない所を暗くする。</div>
+<div class="row"><button data-p="1" aria-pressed="${proj.on}">合わせる</button><button data-p="0" aria-pressed="${!proj.on}">合わせない</button></div>
+<div class="lab">黄色の点線がプロジェクターのふちに来るように直してね</div>
+<div class="row"><button data-dy="-6">範囲を上へ</button><button data-dy="6">範囲を下へ</button></div>
+<div class="row"><button data-dh="-6">高さを縮める</button><button data-dh="6">高さを伸ばす</button><button data-reset="1">元に戻す</button></div>`;
+  projEl.hidden=false;projBtn.setAttribute('aria-expanded','true');updProj();
+}
+function closeProj(){projEl.hidden=true;projBtn.setAttribute('aria-expanded','false');updProj()}
+projBtn.onclick=()=>{if(projEl.hidden)openProj();else closeProj()};
+projEl.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.p)proj.on=b.dataset.p==='1';
+  if(b.dataset.dy)proj.dy=Math.max(-60,Math.min(300,proj.dy+ +b.dataset.dy));
+  if(b.dataset.dh)proj.dh=Math.max(-300,Math.min(300,proj.dh+ +b.dataset.dh));
+  if(b.dataset.reset){proj.dy=0;proj.dh=0}
+  saveProj();openProj();
+  if(L&&view==='class'&&camTarget)fit(camTarget,true);
+});
+document.addEventListener('pointerdown',e=>{if(!projEl.hidden&&!projEl.contains(e.target)&&!projBtn.contains(e.target))closeProj()},true);
+addEventListener('resize',updProj);
 
 /* ---------- 全画面・画面の自動消灯防止 ---------- */
 const root=document.documentElement,fsReq=root.requestFullscreen||root.webkitRequestFullscreen;
