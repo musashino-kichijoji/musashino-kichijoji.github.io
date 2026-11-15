@@ -118,6 +118,16 @@ body[data-view="check"] #stage{display:none}
 #toc button.g{font-weight:700}
 #toc button[aria-current="true"]{background:var(--bar-on);border-color:#8fa5b4}
 #toc button:focus-visible{outline:2px solid #9cc4e4;outline-offset:1px}
+/* アニメ（教材の lesson.json の anims）。図を映しているときだけボタンが出る（プロジェクターに映らない下のほうに置く）。
+   開くと、プロジェクターに映る範囲いっぱいにアニメを出す。進む・戻る・閉じるは下のバーで（タップでも進む） */
+#animbtns{position:absolute;right:max(12px,env(safe-area-inset-right,0px));bottom:12px;z-index:3;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+#animbtns[hidden]{display:none}
+#animbtns button{font:inherit;font-size:15px;font-weight:700;color:#fff;background:#6b45a8;border:1px solid #a585dc;border-radius:10px;height:48px;padding:0 16px;cursor:pointer;touch-action:manipulation;box-shadow:0 4px 14px rgba(0,0,0,.45)}
+#animbtns button:focus-visible{outline:2px solid #9cc4e4;outline-offset:2px}
+#animv{position:fixed;left:0;right:0;top:0;z-index:4;background:#000}
+#animv[hidden]{display:none}
+#animv iframe{position:absolute;left:0;width:100%;border:0;background:#fff;display:block}
+#animx{background:#6b45a8!important;border-color:#a585dc!important}
 @media (prefers-reduced-motion:reduce){#sheet,.ly{transition:none}}
 </style>
 
@@ -126,7 +136,10 @@ body[data-view="check"] #stage{display:none}
   <canvas id="live" aria-hidden="true"></canvas>
   <div id="projwin" aria-hidden="true" hidden></div>
   <div id="msg">プリントを読み込んでいます…</div>
+  <div id="animbtns" class="classonly" hidden></div>
 </div>
+<!-- アニメは #stage の外に置く（中に置くと、タップがアニメに届かないことがあった） -->
+<div id="animv" hidden></div>
 
 <main id="check" hidden>
   <div class="in">
@@ -173,6 +186,7 @@ body[data-view="check"] #stage{display:none}
   <span class="gap"></span>
   <span class="classonly" style="display:contents">
     <span id="hint"></span>
+    <button id="animx" hidden>✕ アニメを閉じる</button>
     <button id="tocb" aria-haspopup="true" aria-expanded="false">目次</button>
     <button id="first">最初へ</button>
     <button id="whole">全体</button>
@@ -309,12 +323,91 @@ function apply(animated=true,flash=false){
     $('#prev').disabled=idx===0;$('#first').disabled=idx===0;$('#next').disabled=idx===L.steps.length-1;
     store.set(KEY('step'),idx);
   }else if(view!=='check')fitWidth();
+  updAnimBtns();
 }
-function go(d){const n=idx+d;if(n<0||n>=L.steps.length)return;idx=n;
+function go(d){
+  if(anim){if(d>0&&anim.i>=anim.n-1)closeAnim();else animGo(d);return}   /* アニメを開いているあいだは、アニメの中で進む（最後の次で閉じる） */
+  const n=idx+d;if(n<0||n>=L.steps.length)return;idx=n;
   /* 目次で飛んだあとは、次の答えが今の窓に入っているあいだは窓を動かさない */
   if(tocHold&&!(d===1&&inHold(L.steps[idx],tocHold)))tocHold=null;
   apply(true,d===1)}
-function toStart(){tocHold=null;idx=0;apply(true)}
+function toStart(){closeAnim(true);tocHold=null;idx=0;apply(true)}
+
+/* ---------- アニメ（教材の anims に入っている HTML を、図を映しているときにボタンで開く） ----------
+   アニメの HTML は STEPS（段階の名前）と show(i) を書いておく。タップ・次へ・前へはここでつなぐ（animRuntime をアニメの中に入れる） */
+let ANIMS={},anim=null;
+const animBtns=$('#animbtns'),animV=$('#animv'),animX=$('#animx');
+const escH=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+function animTitle(id){const m=/<title>([^<]*)<\/title>/i.exec(ANIMS[id]||'');return m?m[1].trim():'アニメ'}
+function animRuntime(){   /* アニメの中で動く（アプリ側では動かさない） */
+  let i=0;
+  function set(k){const n=STEPS.length;i=Math.max(0,Math.min(n-1,k));show(i);parent.postMessage({anim:'state',i:i,n:n,name:STEPS[i]},'*')}
+  addEventListener('message',function(e){const d=e.data||{};if(d.anim==='go')set(i+d.d)});
+  ['touchstart','touchmove','touchend','touchcancel'].forEach(function(t){addEventListener(t,function(e){if(e.cancelable)e.preventDefault()},{passive:false})});
+  ['gesturestart','gesturechange','contextmenu','selectstart','dragstart','dblclick'].forEach(function(t){addEventListener(t,function(e){e.preventDefault()})});
+  document.documentElement.style.cssText+=';-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none';
+  let p0=null;
+  addEventListener('pointerdown',function(e){p0=[e.clientX,e.clientY,Date.now()]});
+  addEventListener('pointerup',function(e){if(p0&&Math.hypot(e.clientX-p0[0],e.clientY-p0[1])<14&&Date.now()-p0[2]<600)parent.postMessage({anim:'tap'},'*');p0=null});
+  addEventListener('keydown',function(e){parent.postMessage({anim:'key',key:e.key},'*');if(['ArrowRight','ArrowLeft',' ','PageDown','PageUp'].includes(e.key))e.preventDefault()});
+  set(0);
+}
+const SC='scr'+'ipt';
+function animDoc(id){
+  const h=ANIMS[id],rt=`<${SC}>(${animRuntime.toString()})();</${SC}>`;
+  return /<\/body>/i.test(h)?h.replace(/<\/body>/i,rt+'</body>'):h+rt;
+}
+/* 今の窓が data-anim の所にかかっていればボタンを出す */
+function updAnimBtns(){
+  const list=[];
+  if(L&&view==='class'&&!anim&&Array.isArray(L.anims)&&L.steps[idx]){
+    const t=L.targets[tocHold||L.steps[idx].c];
+    if(t)L.anims.forEach(a=>{if(a.page===t.page&&a.x<t.x+t.w&&t.x<a.x+a.w&&a.y<t.y+t.h&&t.y<a.y+a.h)a.ids.forEach(id=>{if(ANIMS[id]&&!list.includes(id))list.push(id)})});
+  }
+  animBtns.innerHTML=list.map(id=>`<button data-anim="${escH(id)}">▶ ${escH(animTitle(id))}</button>`).join('');
+  animBtns.hidden=!list.length;
+}
+function layoutAnim(){
+  if(!anim)return;const reg=projRegion(),r=stage.getBoundingClientRect();
+  Object.assign(animV.style,{top:r.top+'px',height:r.height+'px'});
+  Object.assign(anim.frame.style,{top:reg.top+'px',height:reg.h+'px'});
+}
+function openAnim(id){
+  if(!ANIMS[id])return;closeAnim(true);
+  const f=document.createElement('iframe');
+  f.setAttribute('sandbox','allow-scripts');f.title=animTitle(id);f.srcdoc=animDoc(id);
+  anim={id,frame:f,i:0,n:1,name:''};
+  animV.appendChild(f);animV.hidden=false;animX.hidden=false;layoutAnim();updAnimBar();updAnimBtns();
+  closeOpts();closeToc();keepAwake();
+}
+function closeAnim(quiet){
+  if(!anim)return;anim=null;animV.hidden=true;animV.innerHTML='';animX.hidden=true;
+  $('#first').disabled=false;$('#whole').disabled=false;
+  if(!quiet&&L)apply(false);
+}
+function animGo(d){try{anim.frame.contentWindow.postMessage({anim:'go',d},'*')}catch(e){}}
+function updAnimBar(){
+  if(!anim)return;
+  $('#count').textContent=`${anim.i+1} / ${anim.n}`;
+  $('#hint').textContent=anim.name||animTitle(anim.id);
+  $('#prev').disabled=anim.i<=0;$('#next').disabled=false;$('#first').disabled=true;$('#whole').disabled=true;
+}
+animBtns.addEventListener('click',e=>{const b=e.target.closest('[data-anim]');if(b)openAnim(b.dataset.anim)});
+/* タップがアニメの中ではなくこちらに届いたとき（ブラウザによってある）も、同じように進む */
+let animP0=null;
+animV.addEventListener('pointerdown',e=>{e.preventDefault();animP0=[e.clientX,e.clientY,Date.now()]});
+animV.addEventListener('pointerup',e=>{if(anim&&animP0&&Math.hypot(e.clientX-animP0[0],e.clientY-animP0[1])<14&&Date.now()-animP0[2]<600)go(1);animP0=null});
+['touchstart','touchmove','touchend','gesturestart','contextmenu','dblclick'].forEach(t=>animV.addEventListener(t,e=>{if(e.cancelable)e.preventDefault()},{passive:false}));
+animX.onclick=()=>closeAnim();
+addEventListener('message',e=>{
+  if(!anim||e.source!==anim.frame.contentWindow)return;
+  const d=e.data||{};
+  if(d.anim==='state'){anim.i=+d.i||0;anim.n=+d.n||1;anim.name=String(d.name||'');updAnimBar()}
+  else if(d.anim==='tap')go(1);
+  else if(d.anim==='key'){if(d.key==='ArrowRight'||d.key===' '||d.key==='PageDown')go(1);else if(d.key==='ArrowLeft'||d.key==='PageUp')go(-1);else if(d.key==='Escape')closeAnim()}
+});
+addEventListener('keydown',e=>{if(anim&&e.key==='Escape')closeAnim()});
+addEventListener('resize',layoutAnim);
 
 /* ---------- 目次 ---------- */
 let tocHold=null;
@@ -339,7 +432,7 @@ function openToc(){
 tocBtn.onclick=()=>{if(tocEl.hidden)openToc();else closeToc()};
 tocEl.addEventListener('click',e=>{
   const b=e.target.closest('[data-k]');if(!b)return;
-  const t=tocList()[+b.dataset.k];closeToc();
+  const t=tocList()[+b.dataset.k];closeToc();closeAnim(true);
   idx=Math.min(Math.max(t.i,0),L.steps.length-1);
   tocHold=t.c&&L.targets[t.c]&&t.c!==L.steps[idx].c?t.c:null;
   apply(true);
@@ -347,6 +440,7 @@ tocEl.addEventListener('click',e=>{
 document.addEventListener('pointerdown',e=>{if(!tocEl.hidden&&!tocEl.contains(e.target)&&!tocBtn.contains(e.target))closeToc()},true);
 addEventListener('keydown',e=>{if(e.key==='Escape'&&!tocEl.hidden)closeToc()});
 function setView(v){
+  closeAnim(true);
   view=v;document.body.dataset.view=v;$('#check').hidden=v!=='check';
   $$('#bar [data-view]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.view===v));
   if(!document.getElementById('lib')||document.getElementById('lesson-data'))try{const h=v==='class'?'':'#'+v;if(location.hash!==h)history.replaceState(null,'',location.pathname+location.search+h)}catch(e){}
@@ -385,7 +479,7 @@ projEl.addEventListener('click',e=>{
   if(b.dataset.dy)proj.dy=Math.max(-60,Math.min(300,proj.dy+ +b.dataset.dy));
   if(b.dataset.dh)proj.dh=Math.max(-300,Math.min(300,proj.dh+ +b.dataset.dh));
   if(b.dataset.reset){proj.dy=0;proj.dh=0}
-  saveProj();openProj();
+  saveProj();openProj();layoutAnim();
   if(L&&view==='class'&&camTarget)fit(camTarget,true);
 });
 document.addEventListener('pointerdown',e=>{if(!projEl.hidden&&!projEl.contains(e.target)&&!projBtn.contains(e.target))closeProj()},true);
@@ -837,6 +931,7 @@ function addPoints(e){
 }
 stage.addEventListener('pointerdown',e=>{
   if(view==='check'||!L)return;
+  if(anim){e.preventDefault();return}   /* アニメを開いているあいだは書き込まない（アニメの中のタップはアニメが受け取る） */
   e.preventDefault();keepAwake();
   if(!opts.hidden){closeOpts();if(e.pointerType==='touch')return}   /* 設定パネルは画面に触れると閉じる */
   if(view==='class'&&isDrawInput(e)){
@@ -930,7 +1025,7 @@ async function openLesson(data){
     pdfjsLib.getDocument({data:bytes(data.student),...opt}).promise,
     pdfjsLib.getDocument({data:bytes(data.layers),...opt}).promise
   ]);
-  L=data.layout;stuDoc=sd;layDoc=ld;
+  L=data.layout;stuDoc=sd;layDoc=ld;ANIMS=data.anims&&typeof data.anims==='object'?data.anims:{};
   const v=(await stuDoc.getPage(1)).getViewport({scale:1});pageW=v.width/PT;pageH=v.height/PT;
   idx=Math.min(Math.max(store.get(KEY('step'))||0,0),L.steps.length-1);
   await buildPages();renderInk();buildCheck();
