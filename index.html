@@ -392,7 +392,13 @@ function updAnimBar(){
   $('#hint').textContent=anim.name||animTitle(anim.id);
   $('#prev').disabled=anim.i<=0;$('#next').disabled=false;$('#first').disabled=true;$('#whole').disabled=true;
 }
-animBtns.addEventListener('click',e=>{const b=e.target.closest('[data-anim]');if(b)openAnim(b.dataset.anim)});
+/* ボタンは #stage の中にあるので、stage の書き込み用の処理（pointerdown の preventDefault・setPointerCapture、touch の preventDefault）に
+   取られると iPad では click が来ない。ボタンの所で止めて、指・ペンを離したときに開く（click はマウス・キーボード用） */
+let animBtnUp=0;
+['pointerdown','pointermove'].forEach(t=>animBtns.addEventListener(t,e=>e.stopPropagation()));
+['touchstart','touchmove','touchend','touchcancel'].forEach(t=>animBtns.addEventListener(t,e=>{e.stopPropagation();if(e.cancelable)e.preventDefault()},{passive:false}));
+animBtns.addEventListener('pointerup',e=>{e.stopPropagation();const b=e.target.closest('[data-anim]');if(b){animBtnUp=Date.now();openAnim(b.dataset.anim)}});
+animBtns.addEventListener('click',e=>{const b=e.target.closest('[data-anim]');if(b&&Date.now()-animBtnUp>700)openAnim(b.dataset.anim)});
 /* タップがアニメの中ではなくこちらに届いたとき（ブラウザによってある）も、同じように進む */
 let animP0=null;
 animV.addEventListener('pointerdown',e=>{e.preventDefault();animP0=[e.clientX,e.clientY,Date.now()]});
