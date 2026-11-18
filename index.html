@@ -128,6 +128,11 @@ body[data-view="check"] #stage{display:none}
 #animv[hidden]{display:none}
 #animv iframe{position:absolute;left:0;width:100%;border:0;background:#fff;display:block}
 #animx{background:#6b45a8!important;border-color:#a585dc!important}
+/* アニメの上の書き込み用の透明な紙（ペン・マーカー・消しゴム・ポインター）。指のタップは下の #animv が受けて次へ進む。
+   書いたものはアニメを閉じると消える（先生の希望：A案）。プリントの書き込みとは別 */
+#animv .aink{position:absolute;inset:0;z-index:1;touch-action:none}
+#animv .aink svg,#animv .aink canvas{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+#animv .aink .mk{mix-blend-mode:multiply}
 @media (prefers-reduced-motion:reduce){#sheet,.ly{transition:none}}
 </style>
 
@@ -371,6 +376,7 @@ function layoutAnim(){
   if(!anim)return;const reg=projRegion(),r=stage.getBoundingClientRect();
   Object.assign(animV.style,{top:r.top+'px',height:r.height+'px'});
   Object.assign(anim.frame.style,{top:reg.top+'px',height:reg.h+'px'});
+  if(anim.ink){const c=anim.ink.ov.querySelector('canvas');if(c.width!==live.width||c.height!==live.height){c.width=live.width;c.height=live.height;lctx.setTransform(ldpr,0,0,ldpr,0,0);lctx.lineCap='round';lctx.lineJoin='round'}placeAnimInk()}
 }
 function openAnim(id){
   if(!ANIMS[id])return;closeAnim(true);
@@ -378,10 +384,37 @@ function openAnim(id){
   f.setAttribute('sandbox','allow-scripts');f.title=animTitle(id);f.srcdoc=animDoc(id);
   anim={id,frame:f,i:0,n:1,name:''};
   animV.appendChild(f);animV.hidden=false;animX.hidden=false;layoutAnim();updAnimBar();updAnimBtns();
+  openAnimInk();
   closeOpts();closeToc();keepAwake();
 }
+/* アニメの上に書き込み用の紙を重ねる。書き込みの処理（ペン・消しゴム・ポインター・戻す・全消去）はふだんと同じものを使い、
+   書く先（線の svg・書いている途中の canvas・線の一覧）だけをアニメ用に入れかえる */
+function openAnimInk(){
+  if(view!=='class')return;
+  const ov=document.createElement('div');ov.className='aink';
+  const sv=document.createElementNS('http://www.w3.org/2000/svg','svg'),g=document.createElementNS('http://www.w3.org/2000/svg','g');
+  sv.appendChild(g);
+  const cv=document.createElement('canvas');cv.width=live.width;cv.height=live.height;
+  ov.append(sv,cv);animV.appendChild(ov);
+  const ctx=cv.getContext('2d');ctx.setTransform(ldpr,0,0,ldpr,0,0);ctx.lineCap='round';ctx.lineJoin='round';
+  anim.ink={ov,g,saved:{strokes,hist,lctx}};
+  drawing=null;erasing=false;laser=null;
+  strokes=[];hist=[];inkTarget=g;lctx=ctx;placeAnimInk();
+  ov.addEventListener('pointerdown',e=>{
+    /* ペン（とマウス）は書く。指は下の #animv へ（タップで次へ） */
+    if(!isDrawInput(e)||tool==='move')return;
+    e.stopPropagation();e.preventDefault();penStart(e);
+  },{passive:false});
+}
+function placeAnimInk(){if(anim&&anim.ink)anim.ink.g.setAttribute('transform',`translate(${cam.x} ${cam.y}) scale(${cam.s})`)}
+function closeAnimInk(){
+  if(!anim||!anim.ink)return;const s=anim.ink.saved;
+  drawing=null;erasing=false;laser=null;clearTimeout(holdTimer);holdTimer=null;holdAt=null;
+  strokes=s.strokes;hist=s.hist;lctx=s.lctx;inkTarget=inkSvg;anim.ink=null;
+  lctx.clearRect(0,0,live.width/ldpr,live.height/ldpr);
+}
 function closeAnim(quiet){
-  if(!anim)return;anim=null;animV.hidden=true;animV.innerHTML='';animX.hidden=true;
+  if(!anim)return;closeAnimInk();anim=null;animV.hidden=true;animV.innerHTML='';animX.hidden=true;
   $('#first').disabled=false;$('#whole').disabled=false;
   if(!quiet&&L)apply(false);
 }
@@ -402,7 +435,7 @@ animBtns.addEventListener('click',e=>{const b=e.target.closest('[data-anim]');if
 /* タップがアニメの中ではなくこちらに届いたとき（ブラウザによってある）も、同じように進む */
 let animP0=null;
 animV.addEventListener('pointerdown',e=>{e.preventDefault();animP0=[e.clientX,e.clientY,Date.now()]});
-animV.addEventListener('pointerup',e=>{if(anim&&animP0&&Math.hypot(e.clientX-animP0[0],e.clientY-animP0[1])<14&&Date.now()-animP0[2]<600)go(1);animP0=null});
+animV.addEventListener('pointerup',e=>{if(anim&&animP0&&Math.hypot(e.clientX-animP0[0],e.clientY-animP0[1])<14&&Date.now()-animP0[2]<600&&!penDown&&Date.now()-lastPen>900)go(1);animP0=null});
 ['touchstart','touchmove','touchend','gesturestart','contextmenu','dblclick'].forEach(t=>animV.addEventListener(t,e=>{if(e.cancelable)e.preventDefault()},{passive:false}));
 animX.onclick=()=>closeAnim();
 addEventListener('message',e=>{
@@ -537,8 +570,10 @@ function strokeEl(st){
   }else{el.setAttribute('d',outline(st.p));el.setAttribute('fill',st.c)}
   return el;
 }
-function renderInk(){[...inkSvg.querySelectorAll('path')].forEach(n=>n.remove());strokes.forEach(s=>inkSvg.appendChild(strokeEl(s)))}
-function saveInk(){store.set(KEY('ink'),strokes)}
+/* 書く先：ふだんはプリントの上（#ink）。アニメを開いているあいだはアニメの上の紙（openAnimInk） */
+let inkTarget=inkSvg;
+function renderInk(){[...inkTarget.querySelectorAll('path')].forEach(n=>n.remove());strokes.forEach(s=>inkTarget.appendChild(strokeEl(s)))}
+function saveInk(){if(anim&&anim.ink)return;store.set(KEY('ink'),strokes)}   /* アニメの上の書き込みは保存しない（閉じると消える） */
 function pushHist(){hist.push(strokes.slice());if(hist.length>60)hist.shift()}
 $('#undo').onclick=()=>{if(!hist.length)return;strokes=hist.pop();renderInk();saveInk()};
 let clearArm=null;
@@ -687,6 +722,9 @@ function drawEraserRing(pt){
   lctx.beginPath();lctx.arc(a[0],a[1],sizeOf('eraser'),0,7);lctx.fill();lctx.stroke();lctx.restore();
 }
 
+/* #stage は overflow:hidden でも、中のボタンにフォーカスが移ったときなどにブラウザがスクロールしてしまうことがある。
+   スクロールすると窓（カメラ）と映る範囲がずれるので、いつも 0 に戻す */
+stage.addEventListener('scroll',()=>{if(stage.scrollTop||stage.scrollLeft){stage.scrollTop=0;stage.scrollLeft=0}});
 /* iPadの長押しメニュー・文字選択・共有ポップアップを止める（touch 側の既定動作を止める） */
 ['touchstart','touchmove','touchend','touchcancel'].forEach(t=>stage.addEventListener(t,e=>{if(e.cancelable)e.preventDefault()},{passive:false}));
 ['gesturestart','gesturechange','gestureend','contextmenu','selectstart','dragstart','dblclick'].forEach(t=>stage.addEventListener(t,e=>e.preventDefault()));
@@ -935,23 +973,24 @@ function addPoints(e){
     drawing.p.forEach((q,i)=>{const s=toScreen(q);i?lctx.lineTo(s[0],s[1]):lctx.moveTo(s[0],s[1])});lctx.stroke();lctx.globalAlpha=1;
   }
 }
+/* ペン（とマウス）で書き始める。プリントの上でも、アニメの上の紙（openAnimInk）でも同じ */
+function penStart(e){
+  if(e.pointerType==='pen'){lastPen=Date.now();touches.clear();gesture=null;penDown=true}
+  try{stage.setPointerCapture(e.pointerId)}catch(_){}
+  /* 「移動」：ペン（とマウス）でなぞるとプリントが動く。書き込みはしない */
+  if(tool==='move'){panning={id:e.pointerId,sx:e.clientX,sy:e.clientY,cam:{...cam}};return}
+  if(tool==='laser'){laser={id:e.pointerId,pts:[],active:true};laserPush(e);if(!laserRAF)laserRAF=requestAnimationFrame(laserFrame);return}
+  if(tool==='eraser'){pushHist();erasing=true;lastErase=null;eraseAt(toSheet(e));return}
+  const col=cfg[tool].c;
+  const q=toSheet(e);q.push(widthFor(e));drawing={id:e.pointerId,t:tool,c:col,p:[q]};
+  if(tool!=='marker'){const a=toScreen(q);lctx.fillStyle=col;lctx.beginPath();lctx.arc(a[0],a[1],q[2]*cam.s/2,0,7);lctx.fill()}
+}
 stage.addEventListener('pointerdown',e=>{
   if(view==='check'||!L)return;
   if(anim){e.preventDefault();return}   /* アニメを開いているあいだは書き込まない（アニメの中のタップはアニメが受け取る） */
   e.preventDefault();keepAwake();
   if(!opts.hidden){closeOpts();if(e.pointerType==='touch')return}   /* 設定パネルは画面に触れると閉じる */
-  if(view==='class'&&isDrawInput(e)){
-    if(e.pointerType==='pen'){lastPen=Date.now();touches.clear();gesture=null;penDown=true}
-    try{stage.setPointerCapture(e.pointerId)}catch(_){}
-    /* 「移動」：ペン（とマウス）でなぞるとプリントが動く。書き込みはしない */
-    if(tool==='move'){panning={id:e.pointerId,sx:e.clientX,sy:e.clientY,cam:{...cam}};return}
-    if(tool==='laser'){laser={id:e.pointerId,pts:[],active:true};laserPush(e);if(!laserRAF)laserRAF=requestAnimationFrame(laserFrame);return}
-    if(tool==='eraser'){pushHist();erasing=true;lastErase=null;eraseAt(toSheet(e));return}
-    const col=cfg[tool].c;
-    const q=toSheet(e);q.push(widthFor(e));drawing={id:e.pointerId,t:tool,c:col,p:[q]};
-    if(tool!=='marker'){const a=toScreen(q);lctx.fillStyle=col;lctx.beginPath();lctx.arc(a[0],a[1],q[2]*cam.s/2,0,7);lctx.fill()}
-    return;
-  }
+  if(view==='class'&&isDrawInput(e)){penStart(e);return}
   if(e.pointerType==='touch'){
     if(penDown||e.width>120)return;            /* ペンで書いている間の手のひらは無視 */
     try{stage.setPointerCapture(e.pointerId)}catch(_){}
@@ -989,7 +1028,7 @@ function endPointer(e){
     if(e.type!=='pointercancel'||st.p.length>2){
       const q=toSheet(e),l=st.p[st.p.length-1];if(!st.s&&Math.hypot(q[0]-l[0],q[1]-l[1])>0.2){q.push(l[2]);st.p.push(q)}
       st.p=st.p.map(q=>[+q[0].toFixed(1),+q[1].toFixed(1),+q[2].toFixed(2)]);
-      pushHist();strokes.push(st);inkSvg.appendChild(strokeEl(st));saveInk();
+      pushHist();strokes.push(st);inkTarget.appendChild(strokeEl(st));saveInk();
     }
     if(e.pointerType==='pen'){lastPen=Date.now();penDown=false}
     return;
