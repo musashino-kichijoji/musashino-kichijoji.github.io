@@ -1,8 +1,8 @@
-/* 授業プリント：オフラインで使えるようにするための仕組み（サービスワーカー）
+﻿/* 授業プリント：オフラインで使えるようにするための仕組み（サービスワーカー）
    ・アプリ本体（index.html など）は、ネットにつながっていれば最新版を取りに行き、つながっていなければ保存しておいた版を使う
    ・PDFを表示する部品（pdf.js）は一度取ったら保存しておいた版を使う
    ・教材はここでは扱わない（教材は iPad の中の別の保存場所に入る） */
-const CACHE = 'jugyo-print-v12';
+const CACHE = 'jugyo-print-v13';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 const LIBS = [
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',

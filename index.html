@@ -319,8 +319,11 @@ function revealed(){
 function apply(animated=true,flash=false){
   const on=revealed();
   const cur=new Set(view==='class'?(L.steps[idx].r||[]):[]);
-  Object.values(layers).forEach(l=>{const v=on.has(l.id);if(v)renderLayer(l);l.div.classList.toggle('on',v);
-    const h=cur.has(l.id);l.hl.forEach(e=>{e.classList.toggle('on',h);e.classList.remove('flash');if(h&&flash){void e.offsetWidth;e.classList.add('flash')}})});
+  Object.values(layers).forEach(l=>{const v=on.has(l.id),was=l.div.classList.contains('on');if(v)renderLayer(l);l.div.classList.toggle('on',v);
+    const h=cur.has(l.id);l.hl.forEach(e=>{e.classList.toggle('on',h);e.classList.remove('flash');if(h&&flash){void e.offsetWidth;e.classList.add('flash')}});
+    /* slide：ずらした所（元の曲線の位置など）から今の位置へスライドして出る。先に進んだときだけ */
+    if(l.slide&&v&&!was&&h&&flash&&l.div.animate){const f={transform:`translate(${l.slide[0]}px,${l.slide[1]}px)`},o={duration:1100,delay:350,easing:'ease-in-out',fill:'backwards'};
+      [l.div,...l.hl].forEach(e=>e.animate([f,{transform:'none'}],o))}});
   if(view==='class'){
     fit(tocHold||L.steps[idx].c,animated);
     $('#count').textContent=`${idx+1} / ${L.steps.length}`;
